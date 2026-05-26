@@ -1,0 +1,10 @@
+.env
+state/
+logs/
+.claude/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+_test_format.py
