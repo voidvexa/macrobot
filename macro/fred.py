@@ -9,12 +9,12 @@ SERIES = {
     "fed_funds_target_upper": "DFEDTARU",
     "fed_funds_target_lower": "DFEDTARL",
     "ten_year_yield": "DGS10",
+    "two_year_yield": "DGS2",
     "cpi": "CPIAUCSL",
     "core_cpi": "CPILFESL",
     "unemployment_rate": "UNRATE",
     "hy_spread": "BAMLH0A0HYM2",
-    "yield_curve": "T10Y2Y",
-    "real_10y": "DFII10",
+    "yield_spread": "T10Y2Y",
 }
 
 # Series that need 13 observations to compute YoY
