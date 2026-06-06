@@ -1,13 +1,15 @@
 import yfinance as yf
 
 LIVE_TICKERS = {
-    "vix": "^VIX",
-    "skew": "^SKEW",
+    "vix":    "^VIX",
+    "skew":   "^SKEW",
+    "move":   "^MOVE",
+    "dxy":    "DX-Y.NYB",
+    "usdjpy": "USDJPY=X",
 }
 
 
 def fetch_live_data() -> dict:
-    """Returns {key: {"value": float, "date": str}}. Missing on fetch failure."""
     result = {}
     for key, symbol in LIVE_TICKERS.items():
         try:

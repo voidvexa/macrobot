@@ -5,44 +5,30 @@ FRED_BASE = "https://api.stlouisfed.org/fred/series/observations"
 HTTP_TIMEOUT = 15
 
 SERIES = {
-    "fed_funds_rate": "DFF",
-    "fed_funds_target_upper": "DFEDTARU",
-    "fed_funds_target_lower": "DFEDTARL",
-    "ten_year_yield": "DGS10",
-    "two_year_yield": "DGS2",
-    "cpi": "CPIAUCSL",
-    "core_cpi": "CPILFESL",
-    "unemployment_rate": "UNRATE",
+    "us10y":     "DGS10",
     "hy_spread": "BAMLH0A0HYM2",
-    "yield_spread": "T10Y2Y",
+    "ig_spread": "BAMLC0A0CM",
+    "sofr":      "SOFR",
+    "effr":      "DFF",
+    "repo":      "RPONTSYD",
+    "rrp":       "RRPONTSYD",
 }
 
-# Series that need 13 observations to compute YoY
-YOY_SERIES = {"cpi", "core_cpi"}
+BPS_SERIES = {"hy_spread", "ig_spread"}
 
 
 def fetch_fred_data() -> dict:
-    """Returns {key: {"value": float, "date": str, "yoy"?: float}}. Missing on fetch failure."""
     if not settings.fred_api_key:
         return {}
 
     result = {}
     for key, series_id in SERIES.items():
-        limit = 14 if key in YOY_SERIES else 1
-        obs = _fetch_series(series_id, limit=limit)
+        obs = _fetch_series(series_id)
         if not obs:
             continue
-
         entry: dict = {"value": obs[0]["value"], "date": obs[0]["date"]}
-
-        if key == "hy_spread":
+        if key in BPS_SERIES:
             entry["value"] = round(entry["value"] * 100, 1)
-
-        if key in YOY_SERIES and len(obs) >= 13:
-            year_ago = obs[12]["value"]
-            if year_ago:
-                entry["yoy"] = round((obs[0]["value"] - year_ago) / year_ago * 100, 2)
-
         result[key] = entry
     return result
 

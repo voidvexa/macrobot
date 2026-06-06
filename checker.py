@@ -2,22 +2,25 @@ from datetime import datetime
 from loguru import logger
 from macro.fred import fetch_fred_data
 from macro.live import fetch_live_data
+from macro.treasury import fetch_treasury_data
 from notifications.telegram import send_message
 from state import load_state, save_state
 
 SERIES_META = {
-    "cpi":                   {"label": "CPI",            "unit": ""},
-    "core_cpi":              {"label": "Core CPI",       "unit": ""},
-    "unemployment_rate":     {"label": "Unemploy",       "unit": "%"},
-    "fed_funds_rate":        {"label": "Fed Funds Rate", "unit": "%"},
-    "fed_funds_target_upper":{"label": "Target Hi",      "unit": "%"},
-    "fed_funds_target_lower":{"label": "Target Lo",      "unit": "%"},
-    "ten_year_yield":        {"label": "10Y Yield",      "unit": "%"},
-    "two_year_yield":        {"label": "2Y Yield",       "unit": "%"},
-    "yield_spread":          {"label": "Yield Spread",   "unit": "%"},
-    "hy_spread":             {"label": "HY Spread",      "unit": " bps"},
-    "vix":                   {"label": "VIX",            "unit": ""},
-    "skew":                  {"label": "SKEW",           "unit": ""},
+    "vix":              {"label": "VIX",        "unit": ""},
+    "move":             {"label": "MOVE",       "unit": ""},
+    "skew":             {"label": "SKEW",       "unit": ""},
+    "dxy":              {"label": "DXY",        "unit": ""},
+    "usdjpy":           {"label": "USD/JPY",    "unit": ""},
+    "us10y":            {"label": "10Y Yield",  "unit": "%"},
+    "hy_spread":        {"label": "HY Spread",  "unit": " bps"},
+    "ig_spread":        {"label": "IG Spread",  "unit": " bps"},
+    "sofr":             {"label": "SOFR",       "unit": "%"},
+    "effr":             {"label": "EFFR",       "unit": "%"},
+    "sofr_effr_spread": {"label": "SOFR-EFFR",  "unit": "%"},
+    "repo":             {"label": "Repo",       "unit": " B"},
+    "rrp":              {"label": "RRP",        "unit": " B"},
+    "tga":              {"label": "TGA",        "unit": " B"},
 }
 
 
@@ -34,8 +37,7 @@ def _fmt_line(key: str, entry: dict, is_new: bool) -> str:
     date = f"{_fmt_date(entry['date']):<7}"
     label = f"{meta['label']:<14}"
     value = f"{entry['value']}{meta['unit']}"
-    yoy = f"  {entry['yoy']:+.1f}%y" if "yoy" in entry else ""
-    return f"`[{marker}] {date}  {label}{value}{yoy}`"
+    return f"`[{marker}] {date}  {label}{value}`"
 
 
 def _state_date(entry) -> str | None:
@@ -44,10 +46,10 @@ def _state_date(entry) -> str | None:
     return entry  # legacy: plain date string
 
 
-def _state_value(entry):
-    if isinstance(entry, dict):
-        return entry.get("value")
-    return None  # legacy: value unknown, treat as changed
+def _value_changed(state_entry, new_value) -> bool:
+    if not isinstance(state_entry, dict):
+        return False  # legacy or missing: no prior value to compare
+    return state_entry.get("value") != new_value
 
 
 def run_check() -> None:
@@ -57,6 +59,13 @@ def run_check() -> None:
     all_data: dict = {}
     all_data.update(fetch_fred_data())
     all_data.update(fetch_live_data())
+    all_data.update(fetch_treasury_data())
+
+    if "sofr" in all_data and "effr" in all_data:
+        all_data["sofr_effr_spread"] = {
+            "value": round(all_data["sofr"]["value"] - all_data["effr"]["value"], 4),
+            "date": all_data["sofr"]["date"],
+        }
 
     new_keys = {k for k, v in all_data.items()
                 if v.get("date") and _state_date(state.get(k)) != v["date"]}
@@ -66,7 +75,7 @@ def run_check() -> None:
         return
 
     value_changed_keys = {k for k in new_keys
-                          if _state_value(state.get(k)) != all_data[k]["value"]}
+                          if _value_changed(state.get(k), all_data[k]["value"])}
 
     today = datetime.now().strftime("%d %b %Y")
     lines = [f"*Macro Update — {len(new_keys)} new release(s)*  |  {today}"]
