@@ -40,16 +40,20 @@ def _fmt_line(key: str, entry: dict, is_new: bool) -> str:
     return f"`[{marker}] {date}  {label}{value}`"
 
 
-def _state_date(entry) -> str | None:
-    if isinstance(entry, dict):
-        return entry.get("date")
-    return entry  # legacy: plain date string
-
-
 def _value_changed(state_entry, new_value) -> bool:
     if not isinstance(state_entry, dict):
         return False  # legacy or missing: no prior value to compare
     return state_entry.get("value") != new_value
+
+
+def _first_seen(state_entry) -> bool:
+    return state_entry is None  # never tracked before (legacy strings don't count)
+
+
+def _persist(state: dict, all_data: dict) -> None:
+    for key, entry in all_data.items():
+        state[key] = {"date": entry["date"], "value": entry["value"]}
+    save_state(state)
 
 
 def run_check() -> None:
@@ -67,18 +71,23 @@ def run_check() -> None:
             "date": all_data["sofr"]["date"],
         }
 
-    new_keys = {k for k, v in all_data.items()
-                if v.get("date") and _state_date(state.get(k)) != v["date"]}
+    # Notify purely on value movement, never on the release date. A changed
+    # value is newsworthy even within the same day; an unchanged value is not,
+    # no matter how many days (or new release dates) have passed.
+    value_changed_keys = {k for k, v in all_data.items()
+                          if _value_changed(state.get(k), v["value"])}
 
-    if not new_keys:
-        logger.info("No new releases.")
+    # First sighting of a series establishes its baseline and is worth one
+    # notification; legacy date-only state entries are baselined silently.
+    notify_keys = value_changed_keys | {k for k in all_data if _first_seen(state.get(k))}
+
+    if not notify_keys:
+        logger.info("No value changes; nothing to notify.")
+        _persist(state, all_data)
         return
 
-    value_changed_keys = {k for k in new_keys
-                          if _value_changed(state.get(k), all_data[k]["value"])}
-
     today = datetime.now().strftime("%d %b %Y")
-    lines = [f"*Macro Update — {len(new_keys)} new release(s)*  |  {today}"]
+    lines = [f"*Macro Update — {len(notify_keys)} update(s)*  |  {today}"]
     lines.append("")
     for key in SERIES_META:
         entry = all_data.get(key)
@@ -88,9 +97,8 @@ def run_check() -> None:
 
     send_message("\n".join(lines))
 
-    for key in new_keys:
-        state[key] = {"date": all_data[key]["date"], "value": all_data[key]["value"]}
-        logger.info(f"New: {SERIES_META.get(key, {}).get('label', key)} ({all_data[key]['date']})")
+    for key in notify_keys:
+        logger.info(f"Update: {SERIES_META.get(key, {}).get('label', key)} ({all_data[key]['date']})")
 
-    save_state(state)
-    logger.info(f"Notified {len(new_keys)} new release(s).")
+    _persist(state, all_data)
+    logger.info(f"Notified {len(notify_keys)} update(s).")
