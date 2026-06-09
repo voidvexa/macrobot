@@ -4,8 +4,6 @@ LIVE_TICKERS = {
     "vix":    "^VIX",
     "skew":   "^SKEW",
     "move":   "^MOVE",
-    "dxy":    "DX-Y.NYB",
-    "usdjpy": "USDJPY=X",
 }
 
 

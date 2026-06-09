@@ -10,8 +10,6 @@ SERIES_META = {
     "vix":              {"label": "VIX",        "unit": ""},
     "move":             {"label": "MOVE",       "unit": ""},
     "skew":             {"label": "SKEW",       "unit": ""},
-    "dxy":              {"label": "DXY",        "unit": ""},
-    "usdjpy":           {"label": "USD/JPY",    "unit": ""},
     "us10y":            {"label": "10Y Yield",  "unit": "%"},
     "hy_spread":        {"label": "HY Spread",  "unit": " bps"},
     "ig_spread":        {"label": "IG Spread",  "unit": " bps"},
