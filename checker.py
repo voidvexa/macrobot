@@ -13,6 +13,8 @@ SERIES_META = {
     "us10y":            {"label": "10Y Yield",  "unit": "%"},
     "hy_spread":        {"label": "HY Spread",  "unit": " bps"},
     "ig_spread":        {"label": "IG Spread",  "unit": " bps"},
+    "cpi":              {"label": "CPI",        "unit": "%"},
+    "core_cpi":         {"label": "Core CPI",   "unit": "%"},
     "sofr":             {"label": "SOFR",       "unit": "%"},
     "effr":             {"label": "EFFR",       "unit": "%"},
     "sofr_effr_spread": {"label": "SOFR-EFFR",  "unit": "%"},
