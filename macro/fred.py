@@ -7,6 +7,7 @@ HTTP_TIMEOUT = 15
 SERIES = {
     "us10y":     "DGS10",
     "hy_spread": "BAMLH0A0HYM2",
+    "ccc_spread":"BAMLH0A3HYC",
     "ig_spread": "BAMLC0A0CM",
     "sofr":      "SOFR",
     "effr":      "DFF",
@@ -16,7 +17,7 @@ SERIES = {
     "core_cpi":  "CPILFESL",
 }
 
-BPS_SERIES = {"hy_spread", "ig_spread"}
+BPS_SERIES = {"hy_spread", "ig_spread", "ccc_spread"}
 
 # Series we report as year-over-year percent change rather than the raw index
 # level. FRED computes the YoY rate server-side via units=pc1, so we receive

@@ -12,6 +12,7 @@ SERIES_META = {
     "skew":             {"label": "SKEW",       "unit": ""},
     "us10y":            {"label": "10Y Yield",  "unit": "%"},
     "hy_spread":        {"label": "HY Spread",  "unit": " bps"},
+    "ccc_spread":       {"label": "CCC Spread", "unit": " bps"},
     "ig_spread":        {"label": "IG Spread",  "unit": " bps"},
     "cpi":              {"label": "CPI",        "unit": "%"},
     "core_cpi":         {"label": "Core CPI",   "unit": "%"},
