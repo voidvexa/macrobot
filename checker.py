@@ -5,6 +5,7 @@ from macro.live import fetch_live_data
 from macro.treasury import fetch_treasury_data
 from notifications.telegram import send_message
 from state import load_state, save_state
+from agent.claude_client import analyze_macro_data
 
 SERIES_META = {
     "vix":              {"label": "VIX",        "unit": ""},
@@ -127,6 +128,14 @@ def run_check() -> None:
         if entry is None:
             continue
         lines.append(_fmt_line(key, entry, is_new=(key in value_changed_keys)))
+
+    notification_text = "\n".join(lines)
+    
+    # Analyze data with AI
+    ai_assessment = analyze_macro_data(notification_text, all_data)
+    if ai_assessment:
+        lines.append("\n*AI Regime / Idea* 🤖:")
+        lines.append(f"_{ai_assessment}_")
 
     send_message("\n".join(lines))
 

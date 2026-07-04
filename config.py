@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     fred_api_key: str = ""
     telegram_bot_token: str
     telegram_chat_id: str
+    anthropic_api_key: str
+    anthropic_model: str
     timezone: str = "America/New_York"
     log_level: str = "INFO"
 
