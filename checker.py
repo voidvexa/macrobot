@@ -41,19 +41,51 @@ def _fmt_line(key: str, entry: dict, is_new: bool) -> str:
     return f"`[{marker}] {date}  {label}{value}`"
 
 
-def _value_changed(state_entry, new_value) -> bool:
+THRESHOLDS = {
+    "vix": 1.0,    # Notify if VIX changes by >= 1.0 points
+}
+
+
+def _value_changed(key: str, state_entry, new_value) -> bool:
     if not isinstance(state_entry, dict):
         return False  # legacy or missing: no prior value to compare
-    return state_entry.get("value") != new_value
+    
+    # Compare against the last notified value to prevent drift.
+    # Fallback to the standard 'value' for backward compatibility if it's missing.
+    old_value = state_entry.get("notified_value", state_entry.get("value"))
+    if old_value is None:
+        return True
+        
+    threshold = THRESHOLDS.get(key, 0.0)
+    if threshold == 0.0:
+        return old_value != new_value
+        
+    return abs(new_value - old_value) >= threshold
 
 
 def _first_seen(state_entry) -> bool:
     return state_entry is None  # never tracked before (legacy strings don't count)
 
 
-def _persist(state: dict, all_data: dict) -> None:
+def _persist(state: dict, all_data: dict, notify_keys: set) -> None:
     for key, entry in all_data.items():
-        state[key] = {"date": entry["date"], "value": entry["value"]}
+        state_entry = state.get(key, {})
+        
+        # If we sent a notification (or it's the first time), the new notified_value is the current value.
+        # Otherwise, we carry over the previous notified_value to maintain the anchor for thresholds.
+        if key in notify_keys or _first_seen(state.get(key)):
+            notified_val = entry["value"]
+            notified_date = entry["date"]
+        else:
+            notified_val = state_entry.get("notified_value", state_entry.get("value"))
+            notified_date = state_entry.get("notified_date", state_entry.get("date"))
+            
+        state[key] = {
+            "date": entry["date"],
+            "value": entry["value"],
+            "notified_date": notified_date,
+            "notified_value": notified_val
+        }
     save_state(state)
 
 
@@ -76,7 +108,7 @@ def run_check() -> None:
     # value is newsworthy even within the same day; an unchanged value is not,
     # no matter how many days (or new release dates) have passed.
     value_changed_keys = {k for k, v in all_data.items()
-                          if _value_changed(state.get(k), v["value"])}
+                          if _value_changed(k, state.get(k), v["value"])}
 
     # First sighting of a series establishes its baseline and is worth one
     # notification; legacy date-only state entries are baselined silently.
@@ -84,7 +116,7 @@ def run_check() -> None:
 
     if not notify_keys:
         logger.info("No value changes; nothing to notify.")
-        _persist(state, all_data)
+        _persist(state, all_data, notify_keys)
         return
 
     today = datetime.now().strftime("%d %b %Y")
@@ -101,5 +133,5 @@ def run_check() -> None:
     for key in notify_keys:
         logger.info(f"Update: {SERIES_META.get(key, {}).get('label', key)} ({all_data[key]['date']})")
 
-    _persist(state, all_data)
+    _persist(state, all_data, notify_keys)
     logger.info(f"Notified {len(notify_keys)} update(s).")
