@@ -11,13 +11,15 @@ SERIES = {
     "ig_spread": "BAMLC0A0CM",
     "sofr":      "SOFR",
     "effr":      "DFF",
-    "repo":      "RPONTSYD",
     "rrp":       "RRPONTSYD",
+    "tga":       "WTREGEN",
+    "walcl":     "WALCL",
     "cpi":       "CPIAUCSL",
     "core_cpi":  "CPILFESL",
 }
 
 BPS_SERIES = {"hy_spread", "ig_spread", "ccc_spread"}
+MILLIONS_TO_BILLIONS_SERIES = {"tga", "walcl"}
 
 # Series we report as year-over-year percent change rather than the raw index
 # level. FRED computes the YoY rate server-side via units=pc1, so we receive
@@ -41,6 +43,8 @@ def fetch_fred_data() -> dict:
             entry["value"] = round(entry["value"] * 100, 1)
         elif key in YOY_SERIES:
             entry["value"] = round(entry["value"], 1)
+        elif key in MILLIONS_TO_BILLIONS_SERIES:
+            entry["value"] = round(entry["value"] / 1000, 3)
         result[key] = entry
     return result
 
