@@ -25,7 +25,7 @@ Use this framework for your classification:
 
 Be ruthless, objective, and extremely concise.
 
-The output must be presented in a well-formatted text that doesn't exceed 200 words.
+The output must not exceed 250 words. If it does, rewrite it to fit within the 250 words limit.
 """
 
 def analyze_macro_data(notification_text: str, all_data: dict) -> str:
