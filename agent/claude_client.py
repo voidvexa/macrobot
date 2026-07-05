@@ -43,7 +43,7 @@ def analyze_macro_data(notification_text: str, all_data: dict) -> str:
     try:
         response = _client.messages.create(
             model=settings.anthropic_model,
-            max_tokens=512,
+            max_tokens=2048,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": prompt}],
         )
