@@ -68,7 +68,7 @@ def _value_changed(key: str, state_entry, new_value) -> bool:
     return abs(new_value - old_value) >= threshold
 
 
-def _get_trend_delta(history: list, current_val: float, unit: str, min_days: int = 40, max_days: int = 60) -> str:
+def _get_trend_delta(history: list, current_val: float, unit: str, min_days: int = 40, max_days: int = 65) -> str:
     if not history:
         return ""
     now = datetime.now()
@@ -112,12 +112,12 @@ def _persist(state: dict, all_data: dict, notify_keys: set) -> None:
         else:
             history[-1]["value"] = entry["value"]
             
-        # trim to 60 days buffer
+        # trim to 65 days buffer
         new_history = []
         for h in history:
             try:
                 h_date = datetime.strptime(h["date"][:10], "%Y-%m-%d")
-                if (now - h_date).days <= 60:
+                if (now - h_date).days <= 65:
                     new_history.append(h)
             except Exception:
                 pass  # discard malformed entries
