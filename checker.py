@@ -34,6 +34,14 @@ def _fmt_date(iso: str) -> str:
         return iso[:10]
 
 
+def _get_trend_window(key: str) -> tuple[int, int]:
+    if key in {"cpi", "core_cpi"}:
+        return 40, 65
+    elif key == "walcl":
+        return 20, 35
+    else:
+        return 5, 15
+
 def _fmt_line(key: str, entry: dict, is_new: bool, history: list) -> str:
     meta = SERIES_META.get(key, {"label": key, "unit": ""})
     marker = "+" if is_new else "."
@@ -41,7 +49,8 @@ def _fmt_line(key: str, entry: dict, is_new: bool, history: list) -> str:
     label = f"{meta['label']:<14}"
     
     current_val_str = f"{entry['value']}{meta['unit']}"
-    trend_str = _get_trend_delta(history, entry['value'], meta['unit'])
+    min_days, max_days = _get_trend_window(key)
+    trend_str = _get_trend_delta(history, entry['date'], entry['value'], meta['unit'], min_days=min_days, max_days=max_days)
     
     return f"`[{marker}] {date}  {label}{current_val_str}{trend_str}`"
 
@@ -68,16 +77,21 @@ def _value_changed(key: str, state_entry, new_value) -> bool:
     return abs(new_value - old_value) >= threshold
 
 
-def _get_trend_delta(history: list, current_val: float, unit: str, min_days: int = 40, max_days: int = 65) -> str:
+def _get_trend_delta(history: list, current_date_str: str, current_val: float, unit: str, min_days: int = 40, max_days: int = 65) -> str:
     if not history:
         return ""
-    now = datetime.now()
+        
+    try:
+        current_date = datetime.strptime(current_date_str[:10], "%Y-%m-%d")
+    except Exception:
+        current_date = datetime.now()
+        
     best_h = None
     best_age = float("inf")
     for h in history:
         try:
             h_date = datetime.strptime(h["date"][:10], "%Y-%m-%d")
-            age = (now - h_date).days
+            age = (current_date - h_date).days
             if min_days <= age <= max_days:
                 if age < best_age:
                     best_age = age

@@ -18,10 +18,8 @@ CRITICAL MOMENTUM RULE: If a number appears in parentheses next to a value (e.g.
 
 Output Requirements:
 1. Provide a brief analysis of the current macro data, heavily focusing on the momentum and trend (the parentheses deltas) rather than just the absolute static data itself.
-2. Conclude with a classification of the current economic data based on Macro market cycles. Describe shifting investor sentiment between two behavioral regimes: Risk-On (optimism and aggressive growth) and Risk-Off (fear and capital preservation). Capital rotation dictates asset performance across these distinct environments.
-Use this framework for your classification:
-- The Risk-On Stage (Expansion & Growth): In this regime, economic indicators are strong, corporate earnings are growing, and central bank policies are typically accommodative or stable. Optimism drives capital away from safety and into growth. Equities: Bullish, particularly for high-growth sectors like Technology, Consumer Discretionary, and Small-Caps. Commodities: High demand for industrial metals and crude oil. Currencies: Capital flows into higher-yielding, growth-linked assets (e.g., AUD, CAD). Bonds: Investors sell fixed-income assets in favor of stocks, causing bond yields to rise.
-- The Risk-Off Stage (Contraction & Panic): This environment emerges when macroeconomic data worsens, geopolitical tensions rise, or central banks unexpectedly tighten policy. Risk appetite plummets as investors prioritize capital preservation over maximizing returns. Equities: Bearish, with investors rotating into low-volatility or defensive dividend stocks (e.g., Utilities, Consumer Staples). Safe-Haven Assets: High demand for the US Dollar, Gold, and Treasury bonds, which pushes yields downward. Currencies: Capital flight into traditional safe havens like the Swiss Franc, Japanese Yen, and the US Dollar.
+2. Conclude with a classification of the current economic data into one of the four Merrill Lynch Investment Clock regimes: Reflation, Recovery, Overheat, or Stagflation. Use your own deep macroeconomic knowledge to determine which of these four regimes best fits the provided data, ensuring your determination is heavily driven by the rate of change (the parentheses trend deltas).
+DO NOT provide any trading signals or asset recommendations. Stop your output immediately after providing the Classification and its brief justification.
 
 Be ruthless, objective, and extremely concise.
 
@@ -37,7 +35,7 @@ def analyze_macro_data(notification_text: str, all_data: dict) -> str:
         f"{notification_text}\n\n"
         f"Here is the full current dataset (for context):\n"
         f"{all_data}\n\n"
-        f"Provide your brief assessment and clear trading signal."
+        f"Provide your brief assessment and stop immediately after the classification."
     )
     
     try:
