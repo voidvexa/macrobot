@@ -3,7 +3,6 @@ from loguru import logger
 from macro.fred import fetch_fred_data
 from macro.live import fetch_live_data
 from macro.treasury import fetch_treasury_data
-from notifications.telegram import send_message as send_telegram_message
 from notifications.discord import send_message as send_discord_message
 from state import load_state, save_state
 from agent.claude_client import analyze_macro_data
@@ -205,14 +204,12 @@ def run_check() -> None:
     notification_text = "\n".join(lines)
     
     # Send the macro data first
-    send_telegram_message(notification_text)
     send_discord_message(notification_text)
 
     # Analyze data with AI (takes a few seconds, guaranteeing it arrives second)
     ai_assessment = analyze_macro_data(notification_text, all_data)
     if ai_assessment:
         ai_text = f"*AI Regime / Idea* 🤖:\n_{ai_assessment}_"
-        send_telegram_message(ai_text)
         send_discord_message(ai_text)
 
     for key in notify_keys:

@@ -9,8 +9,6 @@ class Settings(BaseSettings):
     )
 
     fred_api_key: str = ""
-    telegram_bot_token: str
-    telegram_chat_id: str
     anthropic_api_key: str
     anthropic_model: str
     discord_webhook_url: str = ""
