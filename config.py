@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     telegram_chat_id: str
     anthropic_api_key: str
     anthropic_model: str
+    discord_webhook_url: str = ""
     timezone: str = "America/New_York"
     log_level: str = "INFO"
 
