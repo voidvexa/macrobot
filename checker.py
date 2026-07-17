@@ -42,9 +42,8 @@ def _get_trend_window(key: str) -> tuple[int, int]:
     else:
         return 5, 15
 
-def _fmt_line(key: str, entry: dict, is_new: bool, history: list) -> str:
+def _fmt_line(key: str, entry: dict, history: list) -> str:
     meta = SERIES_META.get(key, {"label": key, "unit": ""})
-    marker = "+" if is_new else "."
     date = f"{_fmt_date(entry['date']):<7}"
     label = f"{meta['label']:<14}"
     
@@ -52,7 +51,7 @@ def _fmt_line(key: str, entry: dict, is_new: bool, history: list) -> str:
     min_days, max_days = _get_trend_window(key)
     trend_str = _get_trend_delta(history, entry['date'], entry['value'], meta['unit'], min_days=min_days, max_days=max_days)
     
-    return f"`[{marker}] {date}  {label}{current_val_str}{trend_str}`"
+    return f"`{date}  {label}{current_val_str}{trend_str}`"
 
 
 THRESHOLDS = {
@@ -194,12 +193,29 @@ def run_check() -> None:
     today = datetime.now().strftime("%d %b %Y")
     lines = [f"*Macro Update — {len(notify_keys)} update(s)*  |  {today}"]
     lines.append("")
+
+    changed_lines = []
+    unchanged_lines = []
+
     for key in SERIES_META:
         entry = all_data.get(key)
         if entry is None:
             continue
         history = state.get(key, {}).get("history", [])
-        lines.append(_fmt_line(key, entry, is_new=(key in value_changed_keys), history=history))
+        formatted_line = _fmt_line(key, entry, history=history)
+        if key in value_changed_keys:
+            changed_lines.append(formatted_line)
+        else:
+            unchanged_lines.append(formatted_line)
+
+    if changed_lines:
+        lines.append("**Changed**")
+        lines.extend(changed_lines)
+        lines.append("")
+        
+    if unchanged_lines:
+        lines.append("**Unchanged**")
+        lines.extend(unchanged_lines)
 
     notification_text = "\n".join(lines)
     
@@ -209,7 +225,7 @@ def run_check() -> None:
     # Analyze data with AI (takes a few seconds, guaranteeing it arrives second)
     ai_assessment = analyze_macro_data(notification_text, all_data)
     if ai_assessment:
-        ai_text = f"*AI Regime / Idea* 🤖:\n_{ai_assessment}_"
+        ai_text = f"_{ai_assessment}_"
         send_discord_message(ai_text)
 
     for key in notify_keys:
