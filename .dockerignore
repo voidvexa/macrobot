@@ -1,0 +1,10 @@
+.git
+.gitignore
+.env
+.agents
+.claude
+__pycache__
+*.pyc
+logs
+state
+_test_format.py

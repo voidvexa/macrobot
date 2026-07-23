@@ -1,8 +1,5 @@
 import sys
 from loguru import logger
-from apscheduler.schedulers.blocking import BlockingScheduler
-from apscheduler.triggers.interval import IntervalTrigger
-
 from config import settings
 from checker import run_check
 
@@ -15,12 +12,7 @@ logger.add(
 )
 
 if __name__ == "__main__":
-    logger.info("Macrobot starting — polling macro data every hour")
+    logger.info("Macrobot starting - single check execution")
     run_check()
+    logger.info("Macrobot check execution finished successfully")
 
-    scheduler = BlockingScheduler(timezone=settings.timezone)
-    scheduler.add_job(run_check, IntervalTrigger(hours=1))
-    try:
-        scheduler.start()
-    except KeyboardInterrupt:
-        logger.info("Shutting down")

@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str
     anthropic_model: str
     discord_webhook_url: str = ""
+    gcs_bucket_name: str = ""
     timezone: str = "America/New_York"
     log_level: str = "INFO"
 
