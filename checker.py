@@ -24,6 +24,8 @@ SERIES_META = {
     "rrp":              {"label": "RRP",        "unit": " B"},
     "tga":              {"label": "TGA",        "unit": " B"},
     "fed_net_liquidity":{"label": "Net Liq",    "unit": " B"},
+    "drtscilm":         {"label": "C&I Tighten", "unit": "%"},
+    "usblr":            {"label": "Prime Rate", "unit": "%"},
 }
 
 
@@ -39,6 +41,8 @@ def _get_trend_window(key: str) -> tuple[int, int]:
         return 40, 65
     elif key == "walcl":
         return 20, 35
+    elif key == "drtscilm":
+        return 70, 110
     else:
         return 5, 15
 

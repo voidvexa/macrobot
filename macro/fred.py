@@ -16,6 +16,8 @@ SERIES = {
     "walcl":     "WALCL",
     "cpi":       "CPIAUCSL",
     "core_cpi":  "CPILFESL",
+    "drtscilm":  "DRTSCILM",
+    "usblr":     "DPRIME",
 }
 
 BPS_SERIES = {"hy_spread", "ig_spread", "ccc_spread"}
