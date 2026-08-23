@@ -1,6 +1,8 @@
 .env
 state/
 logs/
+data/
+*.db
 .claude/
 __pycache__/
 *.pyc

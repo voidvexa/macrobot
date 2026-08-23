@@ -1,6 +1,7 @@
 import sys
 from loguru import logger
 from config import settings
+from db import init_db
 from checker import run_check
 
 logger.remove()
@@ -13,6 +14,7 @@ logger.add(
 
 if __name__ == "__main__":
     logger.info("Macrobot starting - single check execution")
+    init_db()
     run_check()
     logger.info("Macrobot check execution finished successfully")
 

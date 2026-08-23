@@ -9,10 +9,7 @@ class Settings(BaseSettings):
     )
 
     fred_api_key: str = ""
-    anthropic_api_key: str
-    anthropic_model: str
-    discord_webhook_url: str = ""
-    gcs_bucket_name: str = ""
+    sqlite_db_path: str = "data/macrobot.db"
     timezone: str = "America/New_York"
     log_level: str = "INFO"
 

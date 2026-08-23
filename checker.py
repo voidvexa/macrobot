@@ -1,166 +1,22 @@
-from datetime import datetime
 from loguru import logger
 from macro.fred import fetch_fred_data
 from macro.live import fetch_live_data
 from macro.treasury import fetch_treasury_data
-from notifications.discord import send_message as send_discord_message
-from state import load_state, save_state
-from agent.claude_client import analyze_macro_data
-
-SERIES_META = {
-    "vix":              {"label": "VIX",        "unit": ""},
-    "move":             {"label": "MOVE",       "unit": ""},
-    "skew":             {"label": "SKEW",       "unit": ""},
-    "us10y":            {"label": "10Y Yield",  "unit": "%"},
-    "hy_spread":        {"label": "HY Spread",  "unit": " bps"},
-    "ccc_spread":       {"label": "CCC Spread", "unit": " bps"},
-    "ig_spread":        {"label": "IG Spread",  "unit": " bps"},
-    "cpi":              {"label": "CPI",        "unit": "%"},
-    "core_cpi":         {"label": "Core CPI",   "unit": "%"},
-    "sofr":             {"label": "SOFR",       "unit": "%"},
-    "effr":             {"label": "EFFR",       "unit": "%"},
-    "sofr_effr_spread": {"label": "SOFR-EFFR",  "unit": "%"},
-    "walcl":            {"label": "WALCL",      "unit": " B"},
-    "rrp":              {"label": "RRP",        "unit": " B"},
-    "tga":              {"label": "TGA",        "unit": " B"},
-    "fed_net_liquidity":{"label": "Net Liq",    "unit": " B"},
-    "drtscilm":         {"label": "C&I Tighten", "unit": "%"},
-    "usblr":            {"label": "Prime Rate", "unit": "%"},
-}
-
-
-def _fmt_date(iso: str) -> str:
-    try:
-        return datetime.strptime(iso[:10], "%Y-%m-%d").strftime("%d %b")
-    except ValueError:
-        return iso[:10]
-
-
-def _get_trend_window(key: str) -> tuple[int, int]:
-    if key in {"cpi", "core_cpi"}:
-        return 40, 65
-    elif key == "walcl":
-        return 20, 35
-    elif key == "drtscilm":
-        return 70, 110
-    else:
-        return 5, 15
-
-def _fmt_line(key: str, entry: dict, history: list) -> str:
-    meta = SERIES_META.get(key, {"label": key, "unit": ""})
-    date = f"{_fmt_date(entry['date']):<7}"
-    label = f"{meta['label']:<14}"
-    
-    current_val_str = f"{entry['value']}{meta['unit']}"
-    min_days, max_days = _get_trend_window(key)
-    trend_str = _get_trend_delta(history, entry['date'], entry['value'], meta['unit'], min_days=min_days, max_days=max_days)
-    
-    return f"`{date}  {label}{current_val_str}{trend_str}`"
-
-
-THRESHOLDS = {
-    "vix": 1.0,    # Notify if VIX changes by >= 1.0 points
-}
-
-
-def _value_changed(key: str, state_entry, new_value) -> bool:
-    if not isinstance(state_entry, dict):
-        return False  # legacy or missing: no prior value to compare
-    
-    # Compare against the last notified value to prevent drift.
-    # Fallback to the standard 'value' for backward compatibility if it's missing.
-    old_value = state_entry.get("notified_value", state_entry.get("value"))
-    if old_value is None:
-        return True
-        
-    threshold = THRESHOLDS.get(key, 0.0)
-    if threshold == 0.0:
-        return old_value != new_value
-        
-    return abs(new_value - old_value) >= threshold
-
-
-def _get_trend_delta(history: list, current_date_str: str, current_val: float, unit: str, min_days: int = 40, max_days: int = 65) -> str:
-    if not history:
-        return ""
-        
-    try:
-        current_date = datetime.strptime(current_date_str[:10], "%Y-%m-%d")
-    except Exception:
-        current_date = datetime.now()
-        
-    best_h = None
-    best_age = float("inf")
-    for h in history:
-        try:
-            h_date = datetime.strptime(h["date"][:10], "%Y-%m-%d")
-            age = (current_date - h_date).days
-            if min_days <= age <= max_days:
-                if age < best_age:
-                    best_age = age
-                    best_h = h
-        except Exception:
-            continue
-            
-    if best_h is None: 
-        return ""
-        
-    delta = current_val - best_h["value"]
-    if abs(delta) < 0.001:
-        return ""
-        
-    sign = "+" if delta > 0 else ""
-    return f" ({best_age}d: {sign}{delta:.2f}{unit})"
-
-
-def _first_seen(state_entry) -> bool:
-    return not isinstance(state_entry, dict)
-
-
-def _persist(state: dict, all_data: dict, notify_keys: set) -> None:
-    now = datetime.now()
-    for key, entry in all_data.items():
-        state_entry = state.get(key, {})
-        history = state_entry.get("history", [])
-        
-        # append current entry if date not already latest in history, else update it
-        if not history or history[-1]["date"] != entry["date"]:
-            history.append({"date": entry["date"], "value": entry["value"]})
-        else:
-            history[-1]["value"] = entry["value"]
-            
-        # trim to 65 days buffer
-        new_history = []
-        for h in history:
-            try:
-                h_date = datetime.strptime(h["date"][:10], "%Y-%m-%d")
-                if (now - h_date).days <= 65:
-                    new_history.append(h)
-            except Exception:
-                pass  # discard malformed entries
-        
-        # If we sent a notification (or it's the first time), the new notified_value is the current value.
-        # Otherwise, we carry over the previous notified_value to maintain the anchor for thresholds.
-        if key in notify_keys or _first_seen(state.get(key)):
-            notified_val = entry["value"]
-            notified_date = entry["date"]
-        else:
-            notified_val = state_entry.get("notified_value", state_entry.get("value"))
-            notified_date = state_entry.get("notified_date", state_entry.get("date"))
-            
-        state[key] = {
-            "date": entry["date"],
-            "value": entry["value"],
-            "notified_date": notified_date,
-            "notified_value": notified_val,
-            "history": new_history
-        }
-    save_state(state)
+from db import (
+    get_series_metadata,
+    get_latest_observations,
+    get_last_notified_baselines,
+    insert_observation,
+    upsert_pending_update,
+    get_pending_update,
+)
 
 
 def run_check() -> None:
-    logger.info("Checking macro data for new releases...")
-    state = load_state()
+    logger.info("Checking macro data for new observations...")
+    series_meta = get_series_metadata()
+    latest_obs = get_latest_observations()
+    baselines = get_last_notified_baselines()
 
     all_data: dict = {}
     all_data.update(fetch_fred_data())
@@ -179,61 +35,57 @@ def run_check() -> None:
             "date": all_data["walcl"]["date"],
         }
 
-    # Notify purely on value movement, never on the release date. A changed
-    # value is newsworthy even within the same day; an unchanged value is not,
-    # no matter how many days (or new release dates) have passed.
-    value_changed_keys = {k for k, v in all_data.items()
-                          if _value_changed(k, state.get(k), v["value"])}
+    new_observations_count = 0
+    staged_diffs = {}
 
-    # First sighting of a series establishes its baseline and is worth one
-    # notification; legacy date-only state entries are baselined silently.
-    notify_keys = value_changed_keys | {k for k in all_data if _first_seen(state.get(k))}
-
-    if not notify_keys:
-        logger.info("No value changes; nothing to notify.")
-        _persist(state, all_data, notify_keys)
-        return
-
-    today = datetime.now().strftime("%d %b %Y")
-    lines = [f"*Macro Update — {len(notify_keys)} update(s)*  |  {today}"]
-    lines.append("")
-
-    changed_lines = []
-    unchanged_lines = []
-
-    for key in SERIES_META:
-        entry = all_data.get(key)
-        if entry is None:
+    for key, entry in all_data.items():
+        if key not in series_meta:
             continue
-        history = state.get(key, {}).get("history", [])
-        formatted_line = _fmt_line(key, entry, history=history)
-        if key in value_changed_keys:
-            changed_lines.append(formatted_line)
+
+        prev_entry = latest_obs.get(key)
+        new_val = entry["value"]
+        new_date = entry["date"]
+
+        # 1. Insert new observation if value changed or never observed before
+        if prev_entry is None or abs(new_val - prev_entry["value"]) >= 0.0001:
+            insert_observation(key, new_date, new_val)
+            new_observations_count += 1
+            logger.info(
+                f"Recorded new observation for {series_meta[key]['label']}: "
+                f"{new_val}{series_meta[key]['unit']} (date: {new_date})"
+            )
+
+        # 2. Check significance against last notified baseline
+        baseline = baselines.get(key)
+        threshold = series_meta[key].get("threshold", 0.0)
+
+        if baseline is None:
+            # First time this series is observed: establishes baseline, stage initial notification
+            staged_diffs[key] = {
+                "old": new_val,
+                "new": new_val,
+                "date": new_date,
+                "delta": 0.0,
+            }
         else:
-            unchanged_lines.append(formatted_line)
+            delta = round(new_val - baseline["value"], 4)
+            is_significant = (threshold == 0.0 and abs(delta) >= 0.0001) or (
+                threshold > 0.0 and abs(delta) >= threshold
+            )
+            if is_significant:
+                staged_diffs[key] = {
+                    "old": baseline["value"],
+                    "new": new_val,
+                    "date": new_date,
+                    "delta": delta,
+                }
 
-    if changed_lines:
-        lines.append("**Changed**")
-        lines.extend(changed_lines)
-        lines.append("")
-        
-    if unchanged_lines:
-        lines.append("**Unchanged**")
-        lines.extend(unchanged_lines)
+    # 3. Update pending updates queue if we have staged diffs or need to consolidate with existing pending
+    existing_pending = get_pending_update()
+    if staged_diffs or existing_pending:
+        upsert_pending_update(staged_diffs, series_meta)
 
-    notification_text = "\n".join(lines)
-    
-    # Send the macro data first
-    send_discord_message(notification_text)
-
-    # Analyze data with AI (takes a few seconds, guaranteeing it arrives second)
-    ai_assessment = analyze_macro_data(notification_text, all_data)
-    if ai_assessment:
-        ai_text = f"_{ai_assessment}_"
-        send_discord_message(ai_text)
-
-    for key in notify_keys:
-        logger.info(f"Update: {SERIES_META.get(key, {}).get('label', key)} ({all_data[key]['date']})")
-
-    _persist(state, all_data, notify_keys)
-    logger.info(f"Notified {len(notify_keys)} update(s).")
+    logger.info(
+        f"Check complete: {new_observations_count} new observation(s) recorded, "
+        f"{len(staged_diffs)} staged significant movement(s)."
+    )
