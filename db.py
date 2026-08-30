@@ -1,12 +1,13 @@
-import json
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Generator, Optional
-from loguru import logger
 from config import settings
 
+# `threshold` is not enforced by this app (there's no alerting logic here
+# anymore) — it's descriptive metadata for a downstream consumer deciding
+# what counts as a notable move for a given indicator.
 DEFAULT_SERIES_METADATA = [
     {"key": "vix", "label": "VIX", "unit": "", "source": "live", "threshold": 1.0, "description": "CBOE Volatility Index"},
     {"key": "move", "label": "MOVE", "unit": "", "source": "live", "threshold": 0.0, "description": "ICE BofA MOVE Index"},
@@ -71,19 +72,8 @@ def init_db(custom_path: Optional[str] = None) -> None:
                 FOREIGN KEY (series_key) REFERENCES series_metadata(key)
             );
 
-            CREATE TABLE IF NOT EXISTS updates (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                changed_count INTEGER NOT NULL,
-                changed_keys TEXT NOT NULL,
-                diff_json TEXT NOT NULL,
-                status TEXT NOT NULL DEFAULT 'pending',
-                processed_at TEXT NULL
-            );
-
             CREATE INDEX IF NOT EXISTS idx_obs_key_date ON observations(series_key, date);
             CREATE INDEX IF NOT EXISTS idx_obs_key_id ON observations(series_key, id DESC);
-            CREATE INDEX IF NOT EXISTS idx_updates_status ON updates(status);
         """)
 
         for meta in DEFAULT_SERIES_METADATA:
@@ -108,7 +98,7 @@ def get_series_metadata(custom_path: Optional[str] = None) -> dict[str, dict]:
 def get_latest_observations(custom_path: Optional[str] = None) -> dict[str, dict]:
     with get_db_connection(custom_path) as conn:
         cursor = conn.execute("""
-            SELECT o.series_key, o.date, o.value, o.recorded_at
+            SELECT o.id, o.series_key, o.date, o.value, o.recorded_at
             FROM observations o
             INNER JOIN (
                 SELECT series_key, MAX(id) AS max_id
@@ -128,111 +118,10 @@ def insert_observation(series_key: str, date: str, value: float, custom_path: Op
         return cursor.lastrowid
 
 
-def get_last_notified_baselines(custom_path: Optional[str] = None) -> dict[str, dict]:
-    baselines = {}
+def update_observation(observation_id: int, value: float, custom_path: Optional[str] = None) -> None:
     with get_db_connection(custom_path) as conn:
-        cursor_obs = conn.execute("""
-            SELECT o.series_key, o.date, o.value
-            FROM observations o
-            INNER JOIN (
-                SELECT series_key, MIN(id) AS min_id
-                FROM observations
-                GROUP BY series_key
-            ) first_obs ON o.id = first_obs.min_id
-        """)
-        for row in cursor_obs.fetchall():
-            baselines[row["series_key"]] = {"value": row["value"], "date": row["date"]}
-
-        cursor_upd = conn.execute("""
-            SELECT diff_json
-            FROM updates
-            WHERE status = 'processed'
-            ORDER BY id ASC
-        """)
-        for row in cursor_upd.fetchall():
-            try:
-                diff_data = json.loads(row["diff_json"])
-                for k, v in diff_data.items():
-                    baselines[k] = {"value": v["new"], "date": v.get("date", "")}
-            except Exception as e:
-                logger.error(f"Error parsing processed diff_json: {e}")
-
-    return baselines
-
-
-def get_pending_update(custom_path: Optional[str] = None) -> Optional[dict]:
-    with get_db_connection(custom_path) as conn:
-        cursor = conn.execute("""
-            SELECT id, created_at, changed_count, changed_keys, diff_json, status, processed_at
-            FROM updates
-            WHERE status = 'pending'
-            ORDER BY id DESC
-            LIMIT 1
-        """)
-        row = cursor.fetchone()
-        if not row:
-            return None
-        res = dict(row)
-        res["diff"] = json.loads(res["diff_json"])
-        return res
-
-
-def upsert_pending_update(new_diffs: dict, series_meta: dict, custom_path: Optional[str] = None) -> Optional[int]:
-    with get_db_connection(custom_path) as conn:
-        pending = get_pending_update(custom_path)
-        if pending:
-            pending_id = pending["id"]
-            merged_diff = pending["diff"]
-
-            for k, v in new_diffs.items():
-                if k in merged_diff:
-                    original_old = merged_diff[k]["old"]
-                    current_new = v["new"]
-                    threshold = series_meta.get(k, {}).get("threshold", 0.0)
-                    delta = round(current_new - original_old, 4)
-                    if threshold > 0.0 and abs(delta) < threshold:
-                        merged_diff.pop(k, None)
-                    else:
-                        merged_diff[k] = {
-                            "old": original_old,
-                            "new": current_new,
-                            "date": v.get("date", ""),
-                            "delta": delta,
-                        }
-                else:
-                    merged_diff[k] = v
-
-            if not merged_diff:
-                conn.execute("DELETE FROM updates WHERE id = ?", (pending_id,))
-                logger.info(f"Pending update {pending_id} cancelled as net changes reverted below thresholds.")
-                return None
-
-            changed_keys = list(merged_diff.keys())
-            conn.execute("""
-                UPDATE updates
-                SET changed_count = ?, changed_keys = ?, diff_json = ?
-                WHERE id = ?
-            """, (len(changed_keys), ",".join(changed_keys), json.dumps(merged_diff), pending_id))
-            logger.info(f"Updated consolidated pending update {pending_id} with {len(changed_keys)} series.")
-            return pending_id
-        else:
-            if not new_diffs:
-                return None
-            changed_keys = list(new_diffs.keys())
-            cursor = conn.execute("""
-                INSERT INTO updates (changed_count, changed_keys, diff_json, status, created_at)
-                VALUES (?, ?, ?, 'pending', datetime('now'))
-            """, (len(changed_keys), ",".join(changed_keys), json.dumps(new_diffs)))
-            update_id = cursor.lastrowid
-            logger.info(f"Created new pending update {update_id} with {len(changed_keys)} series.")
-            return update_id
-
-
-def mark_update_processed(update_id: int, custom_path: Optional[str] = None) -> bool:
-    with get_db_connection(custom_path) as conn:
-        cursor = conn.execute("""
-            UPDATE updates
-            SET status = 'processed', processed_at = datetime('now')
-            WHERE id = ? AND status = 'pending'
-        """, (update_id,))
-        return cursor.rowcount > 0
+        conn.execute("""
+            UPDATE observations
+            SET value = ?, recorded_at = datetime('now')
+            WHERE id = ?
+        """, (value, observation_id))

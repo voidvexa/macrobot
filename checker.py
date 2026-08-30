@@ -5,10 +5,8 @@ from macro.treasury import fetch_treasury_data
 from db import (
     get_series_metadata,
     get_latest_observations,
-    get_last_notified_baselines,
     insert_observation,
-    upsert_pending_update,
-    get_pending_update,
+    update_observation,
 )
 
 
@@ -16,7 +14,6 @@ def run_check() -> None:
     logger.info("Checking macro data for new observations...")
     series_meta = get_series_metadata()
     latest_obs = get_latest_observations()
-    baselines = get_last_notified_baselines()
 
     all_data: dict = {}
     all_data.update(fetch_fred_data())
@@ -35,8 +32,8 @@ def run_check() -> None:
             "date": all_data["walcl"]["date"],
         }
 
-    new_observations_count = 0
-    staged_diffs = {}
+    new_count = 0
+    updated_count = 0
 
     for key, entry in all_data.items():
         if key not in series_meta:
@@ -46,46 +43,25 @@ def run_check() -> None:
         new_val = entry["value"]
         new_date = entry["date"]
 
-        # 1. Insert new observation if value changed or never observed before
-        if prev_entry is None or abs(new_val - prev_entry["value"]) >= 0.0001:
+        # One row per calendar/release date per series: a new date gets a new
+        # row; a same-day value change (e.g. an intraday VIX quote) updates
+        # that day's row in place rather than spamming a new one every run.
+        if prev_entry is None or prev_entry["date"] != new_date:
             insert_observation(key, new_date, new_val)
-            new_observations_count += 1
+            new_count += 1
             logger.info(
                 f"Recorded new observation for {series_meta[key]['label']}: "
                 f"{new_val}{series_meta[key]['unit']} (date: {new_date})"
             )
-
-        # 2. Check significance against last notified baseline
-        baseline = baselines.get(key)
-        threshold = series_meta[key].get("threshold", 0.0)
-
-        if baseline is None:
-            # First time this series is observed: establishes baseline, stage initial notification
-            staged_diffs[key] = {
-                "old": new_val,
-                "new": new_val,
-                "date": new_date,
-                "delta": 0.0,
-            }
-        else:
-            delta = round(new_val - baseline["value"], 4)
-            is_significant = (threshold == 0.0 and abs(delta) >= 0.0001) or (
-                threshold > 0.0 and abs(delta) >= threshold
+        elif abs(new_val - prev_entry["value"]) >= 0.0001:
+            update_observation(prev_entry["id"], new_val)
+            updated_count += 1
+            logger.info(
+                f"Updated today's observation for {series_meta[key]['label']}: "
+                f"{new_val}{series_meta[key]['unit']} (date: {new_date})"
             )
-            if is_significant:
-                staged_diffs[key] = {
-                    "old": baseline["value"],
-                    "new": new_val,
-                    "date": new_date,
-                    "delta": delta,
-                }
-
-    # 3. Update pending updates queue if we have staged diffs or need to consolidate with existing pending
-    existing_pending = get_pending_update()
-    if staged_diffs or existing_pending:
-        upsert_pending_update(staged_diffs, series_meta)
 
     logger.info(
-        f"Check complete: {new_observations_count} new observation(s) recorded, "
-        f"{len(staged_diffs)} staged significant movement(s)."
+        f"Check complete: {new_count} new observation(s) recorded, "
+        f"{updated_count} same-day observation(s) refreshed."
     )
