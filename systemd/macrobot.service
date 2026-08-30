@@ -5,10 +5,22 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+User=macrobot
+Group=macrobot
 WorkingDirectory=/opt/macrobot
 ExecStart=/opt/macrobot/.venv/bin/python main.py
 StandardOutput=journal
 StandardError=journal
+
+# A wedged run must not block every later trigger: systemd will not start a
+# second instance while one is still running.
+TimeoutStartSec=300
+
+# Deliberately light hardening. Stronger sandboxing (ProtectSystem=strict,
+# ProtectHome) blocks yfinance's cache writes under the service account and
+# fails in ways that are awkward to debug on a remote box.
+NoNewPrivileges=true
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target

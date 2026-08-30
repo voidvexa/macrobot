@@ -1,4 +1,5 @@
 import requests
+from loguru import logger
 from config import settings
 
 FRED_BASE = "https://api.stlouisfed.org/fred/series/observations"
@@ -12,7 +13,6 @@ SERIES = {
     "sofr":      "SOFR",
     "effr":      "DFF",
     "rrp":       "RRPONTSYD",
-    "tga":       "WTREGEN",
     "walcl":     "WALCL",
     "cpi":       "CPIAUCSL",
     "core_cpi":  "CPILFESL",
@@ -21,7 +21,9 @@ SERIES = {
 }
 
 BPS_SERIES = {"hy_spread", "ig_spread", "ccc_spread"}
-MILLIONS_TO_BILLIONS_SERIES = {"tga", "walcl"}
+# tga isn't fetched here — it comes from macro/treasury.py, which is more
+# authoritative (filters to the TGA closing-balance row specifically).
+MILLIONS_TO_BILLIONS_SERIES = {"walcl"}
 
 # Series we report as year-over-year percent change rather than the raw index
 # level. FRED computes the YoY rate server-side via units=pc1, so we receive
@@ -32,6 +34,7 @@ YOY_SERIES = {"cpi", "core_cpi"}
 
 def fetch_fred_data() -> dict:
     if not settings.fred_api_key:
+        logger.warning("FRED_API_KEY is not set - skipping every FRED series.")
         return {}
 
     result = {}
@@ -39,6 +42,7 @@ def fetch_fred_data() -> dict:
         units = "pc1" if key in YOY_SERIES else "lin"
         obs = _fetch_series(series_id, units=units)
         if not obs:
+            logger.warning(f"No usable FRED observation for '{key}' ({series_id}).")
             continue
         entry: dict = {"value": obs[0]["value"], "date": obs[0]["date"]}
         if key in BPS_SERIES:
@@ -63,7 +67,12 @@ def _fetch_series(series_id: str, limit: int = 1, units: str = "lin") -> list[di
     try:
         resp = requests.get(FRED_BASE, params=params, timeout=HTTP_TIMEOUT)
         resp.raise_for_status()
-    except requests.RequestException:
+    except requests.RequestException as exc:
+        # Never log the exception verbatim: its message embeds the request URL,
+        # which carries the FRED api_key as a query parameter.
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        detail = f"HTTP {status}" if status else type(exc).__name__
+        logger.warning(f"FRED request failed for {series_id}: {detail}")
         return []
 
     out = []

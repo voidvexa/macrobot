@@ -1,4 +1,5 @@
 import requests
+from loguru import logger
 
 # The Fiscal Data API moved from /services/api/v1/ to /services/api/fiscal_service/v1/.
 # The old path now returns a 404 HTML page for every request.
@@ -30,12 +31,15 @@ def fetch_treasury_data() -> dict:
         resp.raise_for_status()
         data = resp.json().get("data", [])
         if not data:
+            logger.warning("Treasury API returned no TGA closing-balance rows.")
             return {}
         row = data[0]
         raw = row.get(VALUE_FIELD)
         if raw in (None, "", "null"):
+            logger.warning(f"Treasury TGA row for {row.get('record_date')} has no usable balance.")
             return {}
         value = round(float(raw) / 1000, 3)  # -> billions
         return {"tga": {"value": value, "date": row["record_date"]}}
-    except Exception:
+    except Exception as exc:
+        logger.warning(f"Treasury API fetch failed: {exc}")
         return {}

@@ -10,7 +10,6 @@ class Settings(BaseSettings):
 
     fred_api_key: str = ""
     sqlite_db_path: str = "data/macrobot.db"
-    timezone: str = "America/New_York"
     log_level: str = "INFO"
 
 

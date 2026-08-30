@@ -1,4 +1,5 @@
 import yfinance as yf
+from loguru import logger
 
 LIVE_TICKERS = {
     "vix":    "^VIX",
@@ -13,12 +14,13 @@ def fetch_live_data() -> dict:
         try:
             hist = yf.Ticker(symbol).history(period="5d")
             if hist.empty:
+                logger.warning(f"Yahoo Finance returned no history for '{key}' ({symbol}).")
                 continue
             last = hist.iloc[-1]
             result[key] = {
                 "value": round(float(last["Close"]), 2),
                 "date": last.name.date().isoformat(),
             }
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(f"Yahoo Finance fetch failed for '{key}' ({symbol}): {exc}")
     return result
