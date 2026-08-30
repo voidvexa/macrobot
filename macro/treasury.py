@@ -35,7 +35,7 @@ def fetch_treasury_data() -> dict:
         raw = row.get(VALUE_FIELD)
         if raw in (None, "", "null"):
             return {}
-        value = round(float(raw) / 1000, 3)  # thousands -> billions
+        value = round(float(raw) / 1000, 3)  # -> billions
         return {"tga": {"value": value, "date": row["record_date"]}}
     except Exception:
         return {}
