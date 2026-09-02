@@ -8,7 +8,7 @@ Any downstream agent (e.g. a bot running on the same VPS, such as an x.ai/Grok-b
 
 ## Architecture Overview
 
-1. **Macrobot Ingestion (run as a scheduled job — e.g. cron/systemd timer — hourly)**:
+1. **Macrobot Ingestion (an hourly cron job)**:
    - Fetches FRED, Treasury, and Yahoo Finance data points.
    - Writes to `observations` one row per series per calendar/release date: a new date gets a new row; if the date hasn't changed since the last recorded row (e.g. an intraday VIX quote shifting within the same trading day), that row's value is updated in place instead of inserting a duplicate.
    - Exits immediately after each run (no persistent process).

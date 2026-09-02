@@ -5,15 +5,15 @@ macroeconomic/market indicators, writes any changes to a local SQLite
 database, and exits. It makes no outbound calls to any AI/LLM API and sends
 no notifications itself — see "Notifications" below.
 
-Intended deployment: a scheduled job (systemd timer) on a VPS, run hourly.
-Between runs there is no running process and no in-memory state; everything
-persists in `data/macrobot.db`.
+Intended deployment: an hourly cron job on a VM. Between runs there is no
+running process and no in-memory state; everything persists in
+`data/macrobot.db`.
 
 ## Entry point
 
 `python main.py` — calls `init_db()` then `run_check()`. That's the whole
 program; there is no server, no CLI args, no daemon mode. It exits non-zero
-if the run fails, so systemd marks the unit failed.
+if the run fails.
 
 ## File map
 
@@ -94,80 +94,80 @@ alerting should compute "did this change enough to matter" itself from
   already stored is ignored and logged as stale, rather than written. Storing
   it would otherwise make an outdated reading look like the newest value.
 
-## Installation (VPS)
-
-Assumes the repo at `/opt/macrobot`, running as a dedicated `macrobot`
-service account. Adjust paths if deploying elsewhere.
+## Installation
 
 Python 3.12+ is required (pinned `numpy` needs 3.12+, pinned `pandas` 3.11+).
-Check `python3 --version` first; if it's older, install a newer Python (e.g.
-the `deadsnakes` PPA on Ubuntu) and use that to create the venv.
+Check `python3 --version` first; if it's older, install a newer Python and
+use that to create the venv.
 
 ```bash
-sudo git clone <this-repo> /opt/macrobot
-cd /opt/macrobot
-sudo python3 -m venv .venv
-sudo .venv/bin/pip install -r requirements.txt
+git clone <this-repo> macrobot
+cd macrobot
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
 
-sudo cp .env.example .env
+cp .env.example .env
+chmod 600 .env
 # edit .env and set FRED_API_KEY (get one at
 # https://fred.stlouisfed.org/docs/api/api_key.html)
 
-# dedicated service account; home is set to the repo so yfinance's cache
-# has somewhere writable to live
-sudo useradd --system --home-dir /opt/macrobot --shell /usr/sbin/nologin macrobot
-sudo chown -R macrobot:macrobot /opt/macrobot
-sudo chmod 600 /opt/macrobot/.env
+mkdir -p logs   # cron redirect below writes here; it won't create it
 
 # sanity check: one ingestion pass, creates data/macrobot.db
-sudo -u macrobot .venv/bin/python main.py
+.venv/bin/python main.py
 ```
 
-Then install the hourly timer:
+Then schedule it hourly with cron (`crontab -e`), using absolute paths:
+
+```
+0 * * * * cd <app-dir> && .venv/bin/python main.py >> logs/macrobot.log 2>&1
+```
+
+### Verify the install
+
+Both ways this can go wrong are silent — a missing `.env` still exits 0, and
+a missing `logs/` stops cron from running the app at all without any error.
+So check the result rather than trusting the exit code:
 
 ```bash
-sudo cp systemd/macrobot.service systemd/macrobot.timer /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now macrobot.timer
-
-# verify
-systemctl list-timers macrobot.timer
-journalctl -u macrobot.service -f
+.venv/bin/python - <<'EOF'
+import sqlite3
+c = sqlite3.connect("data/macrobot.db")
+print("series populated:", c.execute(
+    "SELECT COUNT(DISTINCT series_key) FROM observations").fetchone()[0], "of 18")
+print("run status      :", dict(c.execute("SELECT key, value FROM meta")))
+EOF
 ```
 
+Expect **18 of 18** and `last_run_status: ok`.
+
+- Only 4 of 18 (VIX, SKEW, MOVE, TGA) means `FRED_API_KEY` is missing — the
+  whole FRED half of the dataset is absent.
+- After the cron is scheduled, re-check an hour later that `last_run_at` has
+  advanced. If it hasn't, the cron line isn't firing — most likely `logs/`
+  doesn't exist, so the shell can't open the redirect and the app never runs.
+
 Notes:
-- `data/` is created automatically by `db.py` on first run — no manual
-  `mkdir` needed. It must stay writable by `macrobot`.
-- Logs go to the journal (`journalctl -u macrobot.service`), not to disk.
-  The `logs/` directory in this repo is a leftover from an older version and
-  is not written to.
+- `data/` is created automatically on first run; `logs/` is not — both are
+  gitignored, so a fresh clone has neither.
+- The redirect matters: the app logs to stderr, and cron would otherwise try
+  to mail that output and effectively drop it.
 - `.env` is gitignored; `.env.example` documents every variable `config.py`
   reads. Anything else in `.env` is ignored, not an error.
-- The service unit is deliberately only lightly hardened (`NoNewPrivileges`,
-  `PrivateTmp`). Stronger sandboxing (`ProtectSystem=strict`, `ProtectHome`)
-  blocks yfinance's cache writes and fails in ways that are awkward to debug
-  remotely.
+- Overlapping runs are safe — writes are atomic upserts keyed on
+  `(series_key, date)` — so a slow run being caught by the next hour's cron
+  won't duplicate or corrupt anything.
 
 ## Update workflow
 
-When told the code has changed on GitHub:
-
 ```bash
-cd /opt/macrobot
-sudo -u macrobot git pull
-sudo -u macrobot .venv/bin/pip install -r requirements.txt   # no-op if deps unchanged
+git pull
+.venv/bin/pip install -r requirements.txt   # no-op if deps unchanged
 ```
 
-Run these as `macrobot` (not root) so file ownership stays consistent.
-
-That's it — there's no daemon to restart; the unit runs `python main.py`
-fresh from disk on every hourly trigger, so the next run picks up the pulled
-code.
-
-Exceptions: if the `systemd/*` unit files themselves changed, re-copy them
-and `sudo systemctl daemon-reload`. To verify immediately instead of waiting
-for the next hour, `sudo systemctl start macrobot.service` then
-`journalctl -u macrobot.service -n 50`.
+That's it — nothing to restart. Cron runs `main.py` fresh from disk each
+hour, so the next run picks up the pulled code. To verify immediately
+instead of waiting, run `.venv/bin/python main.py` by hand.
 
 ## Health check
 
@@ -175,9 +175,11 @@ for the next hour, `sudo systemctl start macrobot.service` then
 SELECT key, value FROM meta;   -- last_run_at (UTC), last_run_status
 ```
 
+`last_run_at` is how you tell "the market is quiet" from "the box was down
+and cron never fired" — if it's hours stale, the job isn't running.
 `last_run_status` is `partial` when some sources returned nothing and
 `failed` when all did (or the run raised). Individual fetch failures are
-logged as warnings in the journal.
+logged as warnings in `logs/macrobot.log`.
 
 ## Notifications
 
