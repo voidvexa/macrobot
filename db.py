@@ -41,8 +41,7 @@ def get_db_connection(custom_path: Optional[str] = None) -> Generator[sqlite3.Co
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
     # WAL + busy_timeout so a concurrent reader (e.g. an agent querying this
-    # file directly) doesn't hit "database is locked" during our brief
-    # hourly write.
+    # file directly) doesn't hit "database is locked" during our brief write.
     conn.execute("PRAGMA journal_mode = WAL;")
     conn.execute("PRAGMA busy_timeout = 5000;")
     try:

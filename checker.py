@@ -11,7 +11,6 @@ from db import (
 
 
 def run_check() -> None:
-    logger.info("Checking macro data for new observations...")
     series_meta = get_series_metadata()
     latest_obs = get_latest_observations()
 
@@ -79,13 +78,13 @@ def run_check() -> None:
         if prev_entry is None or prev_entry["date"] != new_date:
             upsert_observation(key, new_date, new_val)
             new_count += 1
-            logger.info(
+            logger.debug(
                 f"Recorded new observation for {label}: {new_val}{unit} (date: {new_date})"
             )
         elif abs(new_val - prev_entry["value"]) >= 0.0001:
             upsert_observation(key, new_date, new_val)
             updated_count += 1
-            logger.info(
+            logger.debug(
                 f"Updated same-day observation for {label}: {new_val}{unit} (date: {new_date})"
             )
 

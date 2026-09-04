@@ -8,7 +8,7 @@ Any downstream agent (e.g. a bot running on the same VPS, such as an x.ai/Grok-b
 
 ## Architecture Overview
 
-1. **Macrobot Ingestion (an hourly cron job)**:
+1. **Macrobot Ingestion (a cron job every two hours)**:
    - Fetches FRED, Treasury, and Yahoo Finance data points.
    - Writes to `observations` one row per series per calendar/release date: a new date gets a new row; if the date hasn't changed since the last recorded row (e.g. an intraday VIX quote shifting within the same trading day), that row's value is updated in place instead of inserting a duplicate.
    - Exits immediately after each run (no persistent process).
@@ -18,7 +18,7 @@ Any downstream agent (e.g. a bot running on the same VPS, such as an x.ai/Grok-b
    - Should check `meta` first when freshness matters — a quiet market and a dead ingestion job look identical in `observations` alone.
    - Sends whatever it wants via whatever channel it owns (Discord, Telegram, X/Grok, etc.) — entirely outside Macrobot's scope.
 
-The database is opened in WAL mode, so reading it concurrently with Macrobot's hourly write is safe — no need to schedule around the job.
+The database is opened in WAL mode, so reading it concurrently with Macrobot's write is safe — no need to schedule around the job.
 
 ---
 

@@ -5,8 +5,8 @@ macroeconomic/market indicators, writes any changes to a local SQLite
 database, and exits. It makes no outbound calls to any AI/LLM API and sends
 no notifications itself — see "Notifications" below.
 
-Intended deployment: an hourly cron job on a VM. Between runs there is no
-running process and no in-memory state; everything persists in
+Intended deployment: a cron job every two hours on a VM. Between runs there
+is no running process and no in-memory state; everything persists in
 `data/macrobot.db`.
 
 ## Entry point
@@ -17,7 +17,8 @@ if the run fails.
 
 ## File map
 
-- `main.py` — entry point, logging setup, top-level error handling.
+- `main.py` — entry point, logging setup (stderr + rotating `logs/macrobot.log`),
+  top-level error handling. Creates `logs/` if missing.
 - `config.py` — `pydantic-settings` config, loaded from `.env`. Only reads
   `FRED_API_KEY`, `SQLITE_DB_PATH`, `LOG_LEVEL`. Unrecognized env vars are
   silently ignored (`extra="ignore"`), so stale keys in `.env` don't break
@@ -49,7 +50,7 @@ if the run fails.
   on `(series_key, date)`. A new date inserts; a same-day value change
   updates that row in place (`upsert_observation`, a single atomic
   `ON CONFLICT` statement). This is what keeps a continuously-quoted series
-  like VIX from writing a new row on every hourly run, and what makes two
+  like VIX from writing a new row on every run, and what makes two
   overlapping runs safe.
 - `meta` — key/value run markers: `last_run_at` (UTC) and `last_run_status`
   (`ok` | `partial` | `failed`). Lets a consumer tell "the market is quiet"
@@ -111,23 +112,23 @@ chmod 600 .env
 # edit .env and set FRED_API_KEY (get one at
 # https://fred.stlouisfed.org/docs/api/api_key.html)
 
-mkdir -p logs   # cron redirect below writes here; it won't create it
-
-# sanity check: one ingestion pass, creates data/macrobot.db
+# sanity check: one ingestion pass, creates data/macrobot.db and logs/
 .venv/bin/python main.py
 ```
 
-Then schedule it hourly with cron (`crontab -e`), using absolute paths:
+Then schedule it every two hours with cron (`crontab -e`), using absolute
+paths. Redirect stdout/stderr to `/dev/null` so cron does not mail the
+output and does not grow a second unbounded file — the app already writes
+a rotating log to `logs/macrobot.log`:
 
 ```
-0 * * * * cd <app-dir> && .venv/bin/python main.py >> logs/macrobot.log 2>&1
+0 */2 * * * cd <app-dir> && .venv/bin/python main.py >/dev/null 2>&1
 ```
 
 ### Verify the install
 
-Both ways this can go wrong are silent — a missing `.env` still exits 0, and
-a missing `logs/` stops cron from running the app at all without any error.
-So check the result rather than trusting the exit code:
+A missing `.env` still exits 0, so check the result rather than trusting
+the exit code:
 
 ```bash
 .venv/bin/python - <<'EOF'
@@ -143,19 +144,23 @@ Expect **18 of 18** and `last_run_status: ok`.
 
 - Only 4 of 18 (VIX, SKEW, MOVE, TGA) means `FRED_API_KEY` is missing — the
   whole FRED half of the dataset is absent.
-- After the cron is scheduled, re-check an hour later that `last_run_at` has
-  advanced. If it hasn't, the cron line isn't firing — most likely `logs/`
-  doesn't exist, so the shell can't open the redirect and the app never runs.
+- After the cron is scheduled, re-check a couple of hours later that
+  `last_run_at` has advanced. If it hasn't, the cron line isn't firing.
 
 Notes:
-- `data/` is created automatically on first run; `logs/` is not — both are
+- `data/` and `logs/` are created automatically on first run; both are
   gitignored, so a fresh clone has neither.
-- The redirect matters: the app logs to stderr, and cron would otherwise try
-  to mail that output and effectively drop it.
+- Do **not** append cron output onto `logs/macrobot.log` (`>> logs/macrobot.log`).
+  That bypasses rotation and will grow without bound. The app owns that file:
+  daily rotate at midnight, gzip, keep 7 days. Happy-path is one INFO line
+  per run; per-observation detail is `LOG_LEVEL=DEBUG`. Warnings and errors
+  still show at the default INFO threshold.
+- The `/dev/null` redirect matters: without it, cron would try to mail
+  stderr (the same one-line summary) on every run.
 - `.env` is gitignored; `.env.example` documents every variable `config.py`
   reads. Anything else in `.env` is ignored, not an error.
 - Overlapping runs are safe — writes are atomic upserts keyed on
-  `(series_key, date)` — so a slow run being caught by the next hour's cron
+  `(series_key, date)` — so a slow run being caught by the next cron
   won't duplicate or corrupt anything.
 
 ## Update workflow
@@ -166,7 +171,7 @@ git pull
 ```
 
 That's it — nothing to restart. Cron runs `main.py` fresh from disk each
-hour, so the next run picks up the pulled code. To verify immediately
+time, so the next run picks up the pulled code. To verify immediately
 instead of waiting, run `.venv/bin/python main.py` by hand.
 
 ## Health check
@@ -176,10 +181,12 @@ SELECT key, value FROM meta;   -- last_run_at (UTC), last_run_status
 ```
 
 `last_run_at` is how you tell "the market is quiet" from "the box was down
-and cron never fired" — if it's hours stale, the job isn't running.
+and cron never fired" — if it's well past the two-hour cadence, the job
+isn't running.
 `last_run_status` is `partial` when some sources returned nothing and
 `failed` when all did (or the run raised). Individual fetch failures are
-logged as warnings in `logs/macrobot.log`.
+logged as warnings in `logs/macrobot.log` (rotated daily, gzipped, 7-day
+retention).
 
 ## Notifications
 
