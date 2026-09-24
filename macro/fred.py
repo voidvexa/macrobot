@@ -55,11 +55,13 @@ BPS_SERIES = {"hy_spread", "ig_spread", "ccc_spread"}
 MILLIONS_TO_BILLIONS_SERIES = {"walcl", "tga_weekly", "rsafs", "wresbal"}
 
 # Series we report as year-over-year percent change rather than the raw index
-# level. FRED computes the YoY rate server-side via units=pc1, so we receive
-# e.g. 3.4 (percent) instead of the ~315 index level that means nothing at a
-# glance. These series are monthly, so they move at most once per release.
-# pce (PCEPI) and ppi (PPIFIS) are price indexes, same treatment as CPI.
-YOY_SERIES = {"cpi", "core_cpi", "core_pce", "indpro", "pce", "ppi"}
+# or dollar level. FRED computes the YoY rate server-side via units=pc1, so
+# we receive e.g. 3.4 (percent) instead of a level that is hard to read as
+# an inflation rate. These series are monthly, so they move at most once per
+# release. pce (PCEPI) and ppi (PPIFIS) are price indexes, same treatment as
+# CPI. ahe (CES0500000003) is average hourly earnings, stored as wage growth
+# rather than dollars per hour.
+YOY_SERIES = {"cpi", "core_cpi", "core_pce", "indpro", "pce", "ppi", "ahe"}
 
 
 def fetch_fred_data() -> dict:

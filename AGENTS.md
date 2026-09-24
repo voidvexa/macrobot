@@ -33,9 +33,9 @@ if the run fails.
   indicator.
 - `macro/fred.py` — FRED API (10Y, 10Y-2Y, 10Y-3M, credit spreads, SOFR/EFFR,
   WALCL, RRP, reserve balances, weekly TGA, M2, bank credit, broad USD,
-  CPI/Core CPI/headline PCE/Core PCE/final-demand PPI/INDPRO YoY, 5Y breakeven,
-  5Y5Y forward inflation, payrolls, average hourly earnings, initial and
-  continued claims, unemployment, retail sales, real PCE, real GDP, building
+  CPI/Core CPI/headline PCE/Core PCE/final-demand PPI/average hourly
+  earnings/INDPRO YoY, 5Y breakeven, 5Y5Y forward inflation, payrolls, initial
+  and continued claims, unemployment, retail sales, real PCE, real GDP, building
   permits, CFNAI, NFCI, St. Louis financial stress, C&I tightening, prime
   rate). No-ops if `FRED_API_KEY` is unset.
 - `macro/live.py` — Yahoo Finance via `yfinance` (VIX, MOVE, SKEW).
@@ -84,12 +84,12 @@ alerting should compute "did this change enough to matter" itself from
   `ccc_spread`) come back from FRED in percent and are converted to bps
   (`* 100`). `walcl`, `tga_weekly`, `rsafs`, and `wresbal` come back in
   millions and are converted to billions (`/ 1000`). `cpi`/`core_cpi`/
-  `core_pce`/`pce`/`ppi`/`indpro` are fetched with `units=pc1` (FRED computes
-  YoY % server-side) rather than the raw index level. `payems` stays in
-  thousands of persons, `permit` stays in thousands of units, and `icsa` and
-  `ccsa` are raw counts. `real_pce` (PCEC96) and `real_gdp` (GDPC1) are
-  already billions of chained 2017 dollars. `ahe` (CES0500000003) is dollars
-  per hour. The `tga` series (and therefore `fed_net_liquidity`) comes from
+  `core_pce`/`pce`/`ppi`/`ahe`/`indpro` are fetched with `units=pc1` (FRED
+  computes YoY % server-side) rather than the raw index or dollar level.
+  `payems` stays in thousands of persons, `permit` stays in thousands of
+  units, and `icsa` and `ccsa` are raw counts. `real_pce` (PCEC96) and
+  `real_gdp` (GDPC1) are already billions of chained dollars (current BEA
+  reference year). The `tga` series (and therefore `fed_net_liquidity`) comes from
   `macro/treasury.py`, the authoritative daily source; `tga_weekly` (FRED
   `WDTGAL`, Wednesday level) is stored separately and not used in any
   derived calculation.
