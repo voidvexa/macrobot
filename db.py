@@ -26,6 +26,17 @@ DEFAULT_SERIES_METADATA = [
     {"key": "fed_net_liquidity", "label": "Net Liq", "unit": " B", "source": "derived", "threshold": 0.0, "description": "Fed Net Liquidity (WALCL - RRP - TGA)"},
     {"key": "drtscilm", "label": "C&I Tighten", "unit": "%", "source": "fred", "threshold": 0.0, "description": "Net % of Domestic Banks Tightening Standards for C&I Loans"},
     {"key": "usblr", "label": "Prime Rate", "unit": "%", "source": "fred", "threshold": 0.0, "description": "Bank Prime Loan Rate"},
+    {"key": "payems", "label": "Payrolls", "unit": " K", "source": "fred", "threshold": 0.0, "description": "All Employees, Total Nonfarm (thousands of persons)"},
+    {"key": "icsa", "label": "Initial Claims", "unit": "", "source": "fred", "threshold": 0.0, "description": "Initial Jobless Claims (weekly, seasonally adjusted)"},
+    {"key": "unrate", "label": "Unemployment", "unit": "%", "source": "fred", "threshold": 0.0, "description": "Unemployment Rate"},
+    {"key": "indpro", "label": "Ind. Production", "unit": "%", "source": "fred", "threshold": 0.0, "description": "Industrial Production: Total Index (YoY)"},
+    {"key": "rsafs", "label": "Retail Sales", "unit": " B", "source": "fred", "threshold": 0.0, "description": "Advance Retail Sales: Retail Trade and Food Services"},
+    {"key": "core_pce", "label": "Core PCE", "unit": "%", "source": "fred", "threshold": 0.0, "description": "Core PCE Price Index (YoY, Excluding Food and Energy)"},
+    {"key": "tga_weekly", "label": "TGA (Weekly)", "unit": " B", "source": "fred", "threshold": 0.0, "description": "Treasury General Account, Wednesday Level (H.4.1)"},
+    {"key": "m2sl", "label": "M2", "unit": " B", "source": "fred", "threshold": 0.0, "description": "M2 Money Stock"},
+    {"key": "totbkcr", "label": "Bank Credit", "unit": " B", "source": "fred", "threshold": 0.0, "description": "Bank Credit, All Commercial Banks"},
+    {"key": "dtwexbgs", "label": "Broad USD", "unit": "", "source": "fred", "threshold": 0.0, "description": "Nominal Broad U.S. Dollar Index"},
+    {"key": "t10y2y", "label": "10Y-2Y", "unit": "%", "source": "fred", "threshold": 0.0, "description": "10-Year minus 2-Year Treasury Constant Maturity Spread"},
 ]
 
 
