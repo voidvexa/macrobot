@@ -89,10 +89,10 @@ alerting should compute "did this change enough to matter" itself from
   `payems` stays in thousands of persons, `permit` stays in thousands of
   units, and `icsa` and `ccsa` are raw counts. `real_pce` (PCEC96) and
   `real_gdp` (GDPC1) are already billions of chained dollars (current BEA
-  reference year). The `tga` series (and therefore `fed_net_liquidity`) comes from
-  `macro/treasury.py`, the authoritative daily source; `tga_weekly` (FRED
-  `WDTGAL`, Wednesday level) is stored separately and not used in any
-  derived calculation.
+  reference year). The `tga` series (and therefore `fed_net_liquidity`)
+  comes from `macro/treasury.py`, the authoritative daily source;
+  `tga_weekly` (FRED `WDTGAL`, Wednesday level) is stored separately and
+  not used in any derived calculation.
 - `macro/fred.py`: never log a `requests` exception verbatim — its message
   embeds the request URL, which carries `api_key` as a query parameter.
 - `checker.py`: `fed_net_liquidity` and `sofr_effr_spread` are derived, not

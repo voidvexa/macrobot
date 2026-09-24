@@ -110,10 +110,10 @@ ORDER BY date DESC;
 When analyzing macro movements, one useful lens is the Merrill Lynch Investment Clock:
 
 1. Growth Velocity Vector: Payrolls, Initial Claims, Continued Claims, Unemployment, Industrial Production, CFNAI, Retail Sales, Real PCE, Real GDP, Building Permits, HY/CCC Spreads, VIX/MOVE, NFCI, St. Louis Fed Financial Stress Index, 10Y-2Y and 10Y-3M curves, Prime Rate, Bank C&I Tightening standards.
-2. Inflation Velocity Vector: CPI, Core CPI, headline PCE, Core PCE, final-demand PPI, Average Hourly Earnings (YoY), 5Y breakeven, 5Y5Y forward inflation, 10Y Yield, SOFR/EFFR spread, Broad USD.
+2. Inflation Velocity Vector: CPI, Core CPI, headline PCE, Core PCE, final-demand PPI, Wage Growth, 5Y breakeven, 5Y5Y forward inflation, 10Y Yield, SOFR/EFFR spread, Broad USD.
 3. Liquidity Engine: Fed Net Liquidity (WALCL - TGA - RRP), Reserve Balances, M2, Bank Credit.
 
-Real GDP, real PCE, building permits, payrolls, and retail sales are stored as levels. The consumer computes the quarter-over-quarter or year-over-year change itself.
+Real GDP, real PCE, building permits, payrolls, retail sales, initial claims, continued claims, reserve balances, and M2 are stored as levels. The consumer computes the quarter-over-quarter or year-over-year change itself.
 
 Classify the current regime into one of four quadrants:
 - Reflation: Growth Decelerating | Inflation Decelerating

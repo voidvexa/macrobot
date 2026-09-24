@@ -44,7 +44,7 @@ DEFAULT_SERIES_METADATA = [
     {"key": "ccsa", "label": "Continued Claims", "unit": "", "source": "fred", "threshold": 0.0, "description": "Continued Claims (Insured Unemployment, weekly, seasonally adjusted)"},
     {"key": "pce", "label": "PCE", "unit": "%", "source": "fred", "threshold": 0.0, "description": "PCE Price Index (PCEPI, YoY)"},
     {"key": "ppi", "label": "PPI", "unit": "%", "source": "fred", "threshold": 0.0, "description": "Producer Price Index: Final Demand (PPIFIS, YoY)"},
-    {"key": "ahe", "label": "Hourly Earnings", "unit": "%", "source": "fred", "threshold": 0.0, "description": "Average Hourly Earnings of All Employees, Total Private (CES0500000003, YoY)"},
+    {"key": "ahe", "label": "Wage Growth", "unit": "%", "source": "fred", "threshold": 0.0, "description": "Average Hourly Earnings of All Employees, Total Private (CES0500000003, YoY)"},
     {"key": "t5yie", "label": "5Y Breakeven", "unit": "%", "source": "fred", "threshold": 0.0, "description": "5-Year Breakeven Inflation Rate"},
     {"key": "t5yifr", "label": "5Y5Y Forward", "unit": "%", "source": "fred", "threshold": 0.0, "description": "5-Year, 5-Year Forward Inflation Expectation Rate"},
     {"key": "wresbal", "label": "Reserves", "unit": " B", "source": "fred", "threshold": 0.0, "description": "Reserve Balances with Federal Reserve Banks (H.4.1 week average)"},
