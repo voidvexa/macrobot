@@ -109,9 +109,9 @@ ORDER BY date DESC;
 
 When analyzing macro movements, one useful lens is the Merrill Lynch Investment Clock:
 
-1. Growth Velocity Vector: HY/CCC Spreads, VIX/MOVE, Prime Rate, Bank C&I Tightening standards.
-2. Inflation Velocity Vector: CPI, Core CPI, 10Y Yield, SOFR/EFFR spread.
-3. Liquidity Engine: Fed Net Liquidity (WALCL - TGA - RRP).
+1. Growth Velocity Vector: Payrolls, Initial Claims, Unemployment, Industrial Production, Retail Sales, HY/CCC Spreads, VIX/MOVE, 10Y-2Y curve, Prime Rate, Bank C&I Tightening standards.
+2. Inflation Velocity Vector: CPI, Core CPI, Core PCE, 10Y Yield, SOFR/EFFR spread, Broad USD.
+3. Liquidity Engine: Fed Net Liquidity (WALCL - TGA - RRP), M2, Bank Credit.
 
 Classify the current regime into one of four quadrants:
 - Reflation: Growth Decelerating | Inflation Decelerating

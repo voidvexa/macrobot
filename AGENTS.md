@@ -31,8 +31,10 @@ if the run fails.
   queries. `init_db()` upserts `series_metadata` on every run, so editing
   `DEFAULT_SERIES_METADATA` is the way to add/rename/rethreshold an
   indicator.
-- `macro/fred.py` — FRED API (10Y, credit spreads, SOFR/EFFR, WALCL, RRP,
-  CPI/Core CPI YoY, C&I tightening, prime rate). No-ops if `FRED_API_KEY` is
+- `macro/fred.py` — FRED API (10Y, 10Y-2Y, credit spreads, SOFR/EFFR, WALCL,
+  RRP, weekly TGA, M2, bank credit, broad USD, CPI/Core CPI/Core PCE/INDPRO
+  YoY, payrolls, jobless claims, unemployment, retail sales, C&I tightening,
+  prime rate). No-ops if `FRED_API_KEY` is
   unset.
 - `macro/live.py` — Yahoo Finance via `yfinance` (VIX, MOVE, SKEW).
 - `macro/treasury.py` — U.S. Treasury Fiscal Data API (TGA closing balance).
@@ -78,10 +80,14 @@ alerting should compute "did this change enough to matter" itself from
   `open_today_bal`.
 - `macro/fred.py`: credit spread series (`hy_spread`, `ig_spread`,
   `ccc_spread`) come back from FRED in percent and are converted to bps
-  (`* 100`). `walcl` comes back in millions and is converted to billions
-  (`/ 1000`). `cpi`/`core_cpi` are fetched with `units=pc1` (FRED computes
-  YoY % server-side) rather than the raw index level. TGA is deliberately
-  *not* fetched from FRED — `macro/treasury.py` is the authoritative source.
+  (`* 100`). `walcl`, `tga_weekly` and `rsafs` come back in millions and are
+  converted to billions (`/ 1000`). `cpi`/`core_cpi`/`core_pce`/`indpro` are
+  fetched with `units=pc1` (FRED computes YoY % server-side) rather than the
+  raw index level. `payems` stays in thousands of persons, `icsa` is a raw
+  count. The `tga` series (and therefore `fed_net_liquidity`) comes from
+  `macro/treasury.py`, the authoritative daily source; `tga_weekly` (FRED
+  `WDTGAL`, Wednesday level) is stored separately and not used in any
+  derived calculation.
 - `macro/fred.py`: never log a `requests` exception verbatim — its message
   embeds the request URL, which carries `api_key` as a query parameter.
 - `checker.py`: `fed_net_liquidity` and `sofr_effr_spread` are derived, not
@@ -135,14 +141,14 @@ the exit code:
 import sqlite3
 c = sqlite3.connect("data/macrobot.db")
 print("series populated:", c.execute(
-    "SELECT COUNT(DISTINCT series_key) FROM observations").fetchone()[0], "of 18")
+    "SELECT COUNT(DISTINCT series_key) FROM observations").fetchone()[0], "of 29")
 print("run status      :", dict(c.execute("SELECT key, value FROM meta")))
 EOF
 ```
 
-Expect **18 of 18** and `last_run_status: ok`.
+Expect **29 of 29** and `last_run_status: ok`.
 
-- Only 4 of 18 (VIX, SKEW, MOVE, TGA) means `FRED_API_KEY` is missing — the
+- Only 4 of 29 (VIX, SKEW, MOVE, TGA) means `FRED_API_KEY` is missing — the
   whole FRED half of the dataset is absent.
 - After the cron is scheduled, re-check a couple of hours later that
   `last_run_at` has advanced. If it hasn't, the cron line isn't firing.

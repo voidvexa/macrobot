@@ -18,18 +18,31 @@ SERIES = {
     "core_cpi":  "CPILFESL",
     "drtscilm":  "DRTSCILM",
     "usblr":     "DPRIME",
+    "payems":    "PAYEMS",
+    "icsa":      "ICSA",
+    "unrate":    "UNRATE",
+    "indpro":    "INDPRO",
+    "rsafs":     "RSAFS",
+    "core_pce":  "PCEPILFE",
+    "tga_weekly":"WDTGAL",
+    "m2sl":      "M2SL",
+    "totbkcr":   "TOTBKCR",
+    "dtwexbgs":  "DTWEXBGS",
+    "t10y2y":    "T10Y2Y",
 }
 
 BPS_SERIES = {"hy_spread", "ig_spread", "ccc_spread"}
 # tga isn't fetched here — it comes from macro/treasury.py, which is more
-# authoritative (filters to the TGA closing-balance row specifically).
-MILLIONS_TO_BILLIONS_SERIES = {"walcl"}
+# authoritative (filters to the TGA closing-balance row specifically) and is
+# what fed_net_liquidity uses. tga_weekly (WDTGAL) is FRED's weekly Wednesday
+# level, stored as its own series alongside it.
+MILLIONS_TO_BILLIONS_SERIES = {"walcl", "tga_weekly", "rsafs"}
 
 # Series we report as year-over-year percent change rather than the raw index
 # level. FRED computes the YoY rate server-side via units=pc1, so we receive
 # e.g. 3.4 (percent) instead of the ~315 index level that means nothing at a
 # glance. These series are monthly, so they move at most once per release.
-YOY_SERIES = {"cpi", "core_cpi"}
+YOY_SERIES = {"cpi", "core_cpi", "core_pce", "indpro"}
 
 
 def fetch_fred_data() -> dict:
