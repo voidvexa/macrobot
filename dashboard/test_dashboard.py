@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import json
 import os
 import sqlite3
 import subprocess
@@ -17,7 +18,7 @@ from pathlib import Path
 from urllib.request import urlopen
 
 from dashboard.read import connect, ingestion_running, is_ingestion_argv, is_stale, load_status, resolve_db_path
-from dashboard.server import render_page, make_server
+from dashboard.server import SNAPSHOT_FIELDS, STATUS_FIELDS, make_server, status_payload
 
 SCHEMA = """
 CREATE TABLE series_metadata (
@@ -114,19 +115,6 @@ class ReadTests(unittest.TestCase):
         # Documented order is source, then key: fred before live.
         self.assertEqual([row.key for row in status.snapshot], ["cpi", "us10y", "vix"])
 
-        page = render_page(status, now=now)
-        self.assertIn("3", page)
-        self.assertIn("2", page)
-        self.assertIn(last_run, page)
-        self.assertIn("partial", page)
-        self.assertIn("current", page)
-        self.assertIn("2026-10-03", page)
-        self.assertIn("20.5", page)
-        self.assertIn("4.25", page)
-        self.assertNotIn("99", page)
-        self.assertIn("&lt;script&gt;", page)
-        self.assertNotIn("<script>", page)
-
     def test_stale_when_last_run_is_older_than_two_hours(self) -> None:
         now = datetime(2026, 10, 3, 20, 0, tzinfo=timezone.utc)
         self.assertFalse(is_stale((now - timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S"), now))
@@ -141,9 +129,9 @@ class ReadTests(unittest.TestCase):
             status = load_status(path, now=now)
         self.assertTrue(status.stale)
         self.assertEqual(status.last_run_status, "failed")
-        page = render_page(status, now=now)
-        self.assertIn("stale", page)
-        self.assertIn("failed", page)
+        payload = status_payload(status)
+        self.assertTrue(payload["stale"])
+        self.assertEqual(payload["last_run_status"], "failed")
 
     def test_connection_is_read_only(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -175,8 +163,9 @@ class ReadTests(unittest.TestCase):
             self.assertFalse(path.exists())
             self.assertFalse(status.db_exists)
             self.assertIsNone(status.indicator_count)
-            page = render_page(status)
-            self.assertIn("not there yet", page)
+            payload = status_payload(status)
+            self.assertFalse(payload["db_exists"])
+            self.assertIsNone(payload["indicator_count"])
 
     def test_path_resolution_matches_env_then_dotenv(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -235,8 +224,42 @@ class ProcessTests(unittest.TestCase):
         self.assertFalse(ingestion_running())
 
 
-class PageServerTests(unittest.TestCase):
-    def test_localhost_page_serves_fixture_stats(self) -> None:
+class ApiTests(unittest.TestCase):
+    def test_json_payload_has_the_fields_the_page_reads(self) -> None:
+        now = datetime(2026, 10, 3, 20, 0, tzinfo=timezone.utc)
+        last_run = (now - timedelta(minutes=25)).strftime("%Y-%m-%d %H:%M:%S")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "macrobot.db"
+            _build_db(path, last_run, "partial")
+            status = load_status(path, now=now)
+        payload = status_payload(status)
+
+        self.assertEqual(tuple(payload), STATUS_FIELDS)
+        for row in payload["snapshot"]:
+            self.assertEqual(tuple(row), SNAPSHOT_FIELDS)
+
+        self.assertEqual(payload["indicator_count"], 3)
+        self.assertEqual(payload["indicators_with_observations"], 2)
+        self.assertEqual(payload["observation_count"], 3)
+        self.assertEqual(payload["last_run_at"], last_run)
+        self.assertEqual(payload["last_run_status"], "partial")
+        self.assertFalse(payload["stale"])
+        self.assertEqual(payload["newest_observation_date"], "2026-10-03")
+        self.assertIsInstance(payload["db_size_bytes"], int)
+        self.assertEqual(payload["ingestion_running"], ingestion_running())
+        self.assertIsNone(payload["error"])
+
+        by_key = {row["key"]: row for row in payload["snapshot"]}
+        self.assertEqual([row["key"] for row in payload["snapshot"]], ["cpi", "us10y", "vix"])
+        self.assertIsNone(by_key["cpi"]["value"])
+        self.assertIsNone(by_key["cpi"]["date"])
+        self.assertEqual(by_key["vix"]["value"], 20.5)
+        self.assertEqual(by_key["vix"]["date"], "2026-10-01")
+        self.assertEqual(by_key["vix"]["label"], "VIX <script>")
+        self.assertEqual(by_key["us10y"]["value"], 4.25)
+        self.assertNotEqual(by_key["vix"]["value"], 99.0)
+
+    def test_localhost_api_serves_status_json(self) -> None:
         now_run = datetime.now(timezone.utc) - timedelta(minutes=10)
         last_run = now_run.strftime("%Y-%m-%d %H:%M:%S")
         with tempfile.TemporaryDirectory() as tmp:
@@ -246,19 +269,25 @@ class PageServerTests(unittest.TestCase):
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
             try:
-                port = server.server_address[1]
-                self.assertEqual(server.server_address[0], "127.0.0.1")
-                with urlopen(f"http://127.0.0.1:{port}/") as response:
+                host, port = server.server_address
+                self.assertEqual(host, "127.0.0.1")
+                with urlopen(f"http://127.0.0.1:{port}/api/status") as response:
                     body = response.read().decode()
+                    content_type = response.headers["Content-Type"]
                     self.assertEqual(response.status, 200)
-                self.assertIn("Indicators", body)
-                self.assertIn(last_run, body)
-                self.assertIn("ok", body)
-                self.assertIn("20.5", body)
-                self.assertIn("4.25", body)
-                self.assertIn("2026-10-03", body)
-                word = "running" if ingestion_running() else "idle"
-                self.assertIn(word, body)
+                self.assertIn("application/json", content_type)
+                payload = json.loads(body)
+                self.assertEqual(tuple(payload), STATUS_FIELDS)
+                self.assertEqual(payload["indicator_count"], 3)
+                self.assertEqual(payload["indicators_with_observations"], 2)
+                self.assertEqual(payload["observation_count"], 3)
+                self.assertEqual(payload["last_run_at"], last_run)
+                self.assertEqual(payload["last_run_status"], "ok")
+                self.assertFalse(payload["stale"])
+                self.assertEqual(payload["newest_observation_date"], "2026-10-03")
+                self.assertEqual(payload["ingestion_running"], ingestion_running())
+                self.assertEqual(payload["snapshot"][2]["value"], 20.5)
+                self.assertNotIn("<html", body.lower())
             finally:
                 server.shutdown()
                 server.server_close()

@@ -1,0 +1,88 @@
+/* Light terminal readout. No dark theme, gradients, or rounded cards. */
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  background: #f4f6f2;
+  color: #121212;
+}
+
+body {
+  margin: 1.25rem;
+  font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", "Liberation Mono", Menlo, Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+main {
+  max-width: 88ch;
+}
+
+h1,
+h2,
+p,
+th,
+td,
+footer {
+  font-weight: normal;
+  font-size: 1rem;
+}
+
+h1 {
+  margin: 0 0 0.25rem;
+}
+
+h2 {
+  margin: 1.25rem 0 0.4rem;
+}
+
+p {
+  margin: 0 0 0.75rem;
+}
+
+.notice {
+  border: 1px solid #121212;
+  padding: 0.4rem 0.6rem;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  background: #f4f6f2;
+  border: 1px solid #121212;
+}
+
+th,
+td {
+  border: 1px solid #121212;
+  padding: 0.2rem 0.6rem;
+  text-align: left;
+  vertical-align: baseline;
+  border-radius: 0;
+}
+
+td.num,
+th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  white-space: nowrap;
+}
+
+.readout th {
+  width: 14ch;
+  white-space: nowrap;
+}
+
+td.path {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+footer {
+  margin-top: 1rem;
+}

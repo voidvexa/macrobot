@@ -43,8 +43,9 @@ if the run fails.
 - `DB_INTEGRATION.md` — the schema contract and example queries for whatever
   external agent/bot reads `data/macrobot.db`. Read that, not this, if you're
   building the consumer side.
-- `dashboard/` — read-only localhost page over the same SQLite file. Not part
-  of the cron job. See "Dashboard" below.
+- `dashboard/` — read-only localhost JSON API over the same SQLite file.
+  `dashboard/web` is the React page. Not part of the cron job. See
+  "Dashboard" below.
 
 ## Data model, briefly
 
@@ -203,31 +204,42 @@ retention).
 
 ## Dashboard
 
-A second process, on the same machine as the cron job. It reads
-`data/macrobot.db` (or `SQLITE_DB_PATH` from the environment / `.env`, the
-same default as `config.py`) and serves one page. It does not replace cron.
-Ingestion stays `python main.py`.
+Two processes on the same machine as the cron job. Neither replaces cron, and
+neither writes `macrobot.db`. Ingestion stays `python main.py`.
 
-Start it from the repo root:
+The API is the Python reader. It opens `data/macrobot.db` (or `SQLITE_DB_PATH`
+from the environment / `.env`, the same default as `config.py`) with `mode=ro`
+and `PRAGMA query_only`, and serves `GET /api/status`. It imports nothing from
+`checker` or `macro/`, and it does not load the ingestion stack
+(`dashboard/requirements.txt` is empty; the standard library is enough).
+SQLite stays in that process. The React app only calls the API.
+
+From the repo root, in two terminals:
 
 ```bash
 python -m dashboard
 ```
 
-That binds `127.0.0.1:8765` only. There is no auth in this version, so leave
-the port on localhost. Override the port with `--port` or `DASHBOARD_PORT`.
-`--db` overrides the file for a one-off.
+```bash
+npm --prefix dashboard/web install
+npm --prefix dashboard/web run dev
+```
 
-The sqlite connection is opened with `mode=ro` plus `PRAGMA query_only`. It
-imports nothing from `checker` or `macro/`, and it does not load the ingestion
-stack (`dashboard/requirements.txt` is empty; the standard library is enough).
-Stats come from `series_metadata`, `observations`, and `meta`. The snapshot
-is the consumer query in `DB_INTEGRATION.md` (latest row per series by
-`MAX(date)`). The ingestion process shows as running only while `python
-main.py` is in the process list; between cron runs the status is idle.
-`last_run_at` older than two hours is marked stale.
+The API binds `127.0.0.1:8765`. The React app binds `127.0.0.1:5173` and
+proxies `/api` to that port. If you change the API port, set `DASHBOARD_PORT`
+(or pass `--port`) before starting both. There is no auth, so leave both on
+localhost. `--db` overrides the file for a one-off.
 
-The page is plain on purpose. Colors and type are not chosen yet.
+`GET /api/status` is the stats, then the latest snapshot. Stats: distinct
+indicators in `series_metadata`, how many of those have an observation,
+observation count, `last_run_at`, `last_run_status`, stale when `last_run_at`
+is older than two hours, whether `python main.py` is running (idle between
+cron runs), database file size, and newest observation date. The snapshot is
+the consumer query in `DB_INTEGRATION.md` (latest row per series by
+`MAX(date)`): key, label, value, unit, date.
+
+The React page is a light monospace readout: plain labels, fixed-width
+figures, simple borders. No charts and no AI summary.
 
 Checks, with a temporary database and no network:
 

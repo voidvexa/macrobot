@@ -9,4 +9,6 @@ __pycache__/
 *.pyo
 .venv/
 venv/
+node_modules/
+dashboard/web/dist/
 _test_format.py
