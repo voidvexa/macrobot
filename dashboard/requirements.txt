@@ -1,0 +1,2 @@
+# The dashboard uses the Python standard library only.
+# Do not add the ingestion stack (yfinance, pandas, numpy) here.

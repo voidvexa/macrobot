@@ -43,6 +43,8 @@ if the run fails.
 - `DB_INTEGRATION.md` — the schema contract and example queries for whatever
   external agent/bot reads `data/macrobot.db`. Read that, not this, if you're
   building the consumer side.
+- `dashboard/` — read-only localhost page over the same SQLite file. Not part
+  of the cron job. See "Dashboard" below.
 
 ## Data model, briefly
 
@@ -198,6 +200,40 @@ isn't running.
 `failed` when all did (or the run raised). Individual fetch failures are
 logged as warnings in `logs/macrobot.log` (rotated daily, gzipped, 7-day
 retention).
+
+## Dashboard
+
+A second process, on the same machine as the cron job. It reads
+`data/macrobot.db` (or `SQLITE_DB_PATH` from the environment / `.env`, the
+same default as `config.py`) and serves one page. It does not replace cron.
+Ingestion stays `python main.py`.
+
+Start it from the repo root:
+
+```bash
+python -m dashboard
+```
+
+That binds `127.0.0.1:8765` only. There is no auth in this version, so leave
+the port on localhost. Override the port with `--port` or `DASHBOARD_PORT`.
+`--db` overrides the file for a one-off.
+
+The sqlite connection is opened with `mode=ro` plus `PRAGMA query_only`. It
+imports nothing from `checker` or `macro/`, and it does not load the ingestion
+stack (`dashboard/requirements.txt` is empty; the standard library is enough).
+Stats come from `series_metadata`, `observations`, and `meta`. The snapshot
+is the consumer query in `DB_INTEGRATION.md` (latest row per series by
+`MAX(date)`). The ingestion process shows as running only while `python
+main.py` is in the process list; between cron runs the status is idle.
+`last_run_at` older than two hours is marked stale.
+
+The page is plain on purpose. Colors and type are not chosen yet.
+
+Checks, with a temporary database and no network:
+
+```bash
+python -m unittest dashboard.test_dashboard
+```
 
 ## Notifications
 
