@@ -38,10 +38,6 @@ STATUS_FIELDS = (
 SNAPSHOT_FIELDS = ("key", "label", "value", "unit", "date")
 
 
-class _Server(ThreadingHTTPServer):
-    allow_reuse_address = True
-
-
 def make_server(port: int, db_path: Path) -> ThreadingHTTPServer:
     """Bind 127.0.0.1 only. Each request opens the database read-only."""
 
@@ -73,12 +69,11 @@ def make_server(port: int, db_path: Path) -> ThreadingHTTPServer:
             self.end_headers()
             self.wfile.write(body)
 
-    return _Server((HOST, port), Handler)
+    return ThreadingHTTPServer((HOST, port), Handler)
 
 
 def status_payload(status: DashboardStatus) -> dict:
-    """JSON object the React page renders. Stats first, then the snapshot."""
-    payload = {
+    return {
         "db_path": status.db_path,
         "db_exists": status.db_exists,
         "db_size_bytes": status.db_size_bytes,
@@ -102,10 +97,6 @@ def status_payload(status: DashboardStatus) -> dict:
             for row in status.snapshot
         ],
     }
-    missing = [name for name in STATUS_FIELDS if name not in payload]
-    if missing:
-        raise RuntimeError(f"status payload missing {missing}")
-    return payload
 
 
 def main(argv: list[str] | None = None) -> None:

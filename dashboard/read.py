@@ -18,18 +18,16 @@ from pathlib import Path
 CRON_CADENCE = timedelta(hours=2)
 DEFAULT_DB_PATH = "data/macrobot.db"
 
-# Latest row per series is MAX(date), not MAX(id). Copied from DB_INTEGRATION.md.
 SNAPSHOT_SQL = """
 SELECT
     m.key,
     m.label,
     o.value,
     m.unit,
-    o.date,
-    o.recorded_at
+    o.date
 FROM series_metadata m
 LEFT JOIN (
-    SELECT o1.series_key, o1.value, o1.date, o1.recorded_at
+    SELECT o1.series_key, o1.value, o1.date
     FROM observations o1
     INNER JOIN (
         SELECT series_key, MAX(date) AS max_date
@@ -156,13 +154,12 @@ def load_status(db_path: Path, now: datetime | None = None) -> DashboardStatus:
     )
 
 
-def is_stale(last_run_at: str | None, now: datetime | None = None) -> bool:
+def is_stale(last_run_at: str | None, now: datetime) -> bool:
     """True when the last run is missing or older than the two-hour cadence."""
     parsed = parse_run_timestamp(last_run_at)
     if parsed is None:
         return True
-    moment = now or datetime.now(timezone.utc)
-    return moment - parsed > CRON_CADENCE
+    return now - parsed > CRON_CADENCE
 
 
 def parse_run_timestamp(value: str | None) -> datetime | None:
