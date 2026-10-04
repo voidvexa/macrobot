@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { CategoryPanel } from "./components/CategoryPanel.jsx";
+import { DeskGrid } from "./components/DeskGrid.jsx";
 import { Inspector } from "./components/Inspector.jsx";
 import { StatusLine } from "./components/StatusLine.jsx";
 import { Toolbar } from "./components/Toolbar.jsx";
@@ -161,27 +162,13 @@ export default function App() {
     return () => window.removeEventListener("keydown", listener);
   }, []);
 
-  let body;
+  let note = null;
   if (!loaded && !error) {
-    body = <Note>waiting for /api/snapshot</Note>;
+    note = <Note>waiting for /api/snapshot</Note>;
   } else if (rows.length === 0) {
-    body = <Note>no snapshot. series_metadata has no rows, or the database could not be read.</Note>;
+    note = <Note>no snapshot. series_metadata has no rows, or the database could not be read.</Note>;
   } else if (panels.length === 0) {
-    body = <p className="empty">no match for "{query.trim()}" — esc to clear</p>;
-  } else {
-    body = panels.map((panel) => (
-      <CategoryPanel
-        key={panel.cat.id}
-        cat={panel.cat}
-        rows={panel.rows}
-        open={panel.open}
-        onToggle={togglePanel}
-        needle={needle}
-        sel={sel}
-        onSelect={select}
-        onHover={setHover}
-      />
-    ));
+    note = <p className="empty">no match for "{query.trim()}" — esc to clear</p>;
   }
 
   return (
@@ -210,13 +197,30 @@ export default function App() {
             {tone.banner}
           </p>
         ) : null}
-        <div className="grid" onPointerLeave={() => setHover(null)}>
-          <h2 className="sr-only">latest snapshot</h2>
-          {body}
+        <DeskGrid
+          panels={note ? [] : panels}
+          renderPanel={(panel, slot) => (
+            <CategoryPanel
+              key={panel.cat.id}
+              cat={panel.cat}
+              rows={panel.rows}
+              open={panel.open}
+              onToggle={togglePanel}
+              needle={needle}
+              sel={sel}
+              onSelect={select}
+              onHover={setHover}
+              slot={slot}
+            />
+          )}
+          prelude={<h2 className="sr-only">latest snapshot</h2>}
+          onPointerLeave={() => setHover(null)}
+        >
+          {note}
           {activeCat === "all" && needle === "" ? (
             <SystemPanel job={job} stats={stats} rows={rows} rule={rule} />
           ) : null}
-        </div>
+        </DeskGrid>
       </main>
       <Inspector
         row={active}
@@ -245,38 +249,40 @@ function SystemPanel({ job, stats, rows, rule }) {
         <h2>status</h2> <span className="panel-name">· freshness</span>
         <span className="rule" aria-hidden="true" /> <span className="meta">read-only</span>
       </div>
-      <dl className="facts">
-        <Fact name="last run" value={utcStamp(at)} extra={status ?? DASH} tone={status ? statusTone(status) : null} />
-        <Fact name="local" value={localStamp(at)} extra={ago(at, now)} />
-        <Fact
-          name="ingestion"
-          value={job ? (job.ingestion_running ? "running" : "idle") : DASH}
-          extra={job?.stale == null ? DASH : job.stale ? "job stale" : "job current"}
-          tone={job?.stale ? "warn" : null}
-        />
-        <Fact name="database" value={stats?.db_path ?? job?.db_path ?? DASH} extra={fmtBytes(stats?.db_size_bytes)} />
-        <Fact
-          name="observations"
-          value={fmtCount(stats?.observation_count)}
-          extra={`newest ${stats?.newest_observation_date || DASH}`}
-        />
-      </dl>
-      {cadences.length > 0 ? (
-        <>
-          <hr className="sep" />
-          <dl className="facts">
-            {cadences.map((group) => (
-              <Fact
-                key={group.cadence}
-                name={group.cadence}
-                value={`${group.count} series · oldest ${group.oldest == null ? DASH : `${group.oldest}d`} · limit ${group.limit}d`}
-                extra={group.stale > 0 ? `${group.stale} stale` : "ok"}
-                tone={group.stale > 0 ? "warn" : "ok"}
-              />
-            ))}
-          </dl>
-        </>
-      ) : null}
+      <div className="system-body">
+        <dl className="facts">
+          <Fact name="last run" value={utcStamp(at)} extra={status ?? DASH} tone={status ? statusTone(status) : null} />
+          <Fact name="local" value={localStamp(at)} extra={ago(at, now)} />
+          <Fact
+            name="ingestion"
+            value={job ? (job.ingestion_running ? "running" : "idle") : DASH}
+            extra={job?.stale == null ? DASH : job.stale ? "job stale" : "job current"}
+            tone={job?.stale ? "warn" : null}
+          />
+          <Fact name="database" value={stats?.db_path ?? job?.db_path ?? DASH} extra={fmtBytes(stats?.db_size_bytes)} />
+          <Fact
+            name="observations"
+            value={fmtCount(stats?.observation_count)}
+            extra={`newest ${stats?.newest_observation_date || DASH}`}
+          />
+        </dl>
+        {cadences.length > 0 ? (
+          <div className="system-cadence">
+            <hr className="sep" />
+            <dl className="facts">
+              {cadences.map((group) => (
+                <Fact
+                  key={group.cadence}
+                  name={group.cadence}
+                  value={`${group.count} series · oldest ${group.oldest == null ? DASH : `${group.oldest}d`} · limit ${group.limit}d`}
+                  extra={group.stale > 0 ? `${group.stale} stale` : "ok"}
+                  tone={group.stale > 0 ? "warn" : "ok"}
+                />
+              ))}
+            </dl>
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }

@@ -2,7 +2,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ago, ageDays, fmtBytes, fmtCount, fmtValue, jobTone, parseUtc, period, utcStamp, utcTime } from "./format.js";
-import { buildRows, cadenceLetters, cadenceSummary, countStale, groupsOf, matches, sortRows, splitMatch } from "./rows.js";
+import { arrangeColumns } from "./columns.js";
+import { buildRows, cadenceLetters, cadenceSummary, countStale, freshnessBand, freshnessLabel, groupsOf, matches, sortRows, splitMatch } from "./rows.js";
 import { cadenceOf } from "./series.js";
 
 // Spec 6.6: key, raw unit, raw value, date, rendered value + unit, period.
@@ -188,6 +189,84 @@ test("status panel cadence rows", () => {
       [30, 2],
     ],
   );
+});
+
+test("freshness marker uses half the active limit, including the 30-day preview", () => {
+  const cadence = Object.fromEntries(buildRows(SNAPSHOT, NOW, "cadence").map((row) => [row.key, row]));
+  assert.equal(cadence.effr.age, 3);
+  assert.equal(freshnessBand(cadence.effr), "ok");
+  assert.equal(freshnessLabel(cadence.effr), "fresh, 3d of 6d");
+  assert.equal(freshnessBand(cadence.t10y2y), "ok");
+  assert.equal(freshnessLabel(cadence.ccsa), "aging, 15d of 21d");
+  assert.equal(freshnessBand(cadence.totbkcr), "aging");
+  assert.equal(freshnessBand(cadence.cpi), "aging");
+  assert.equal(freshnessBand(cadence.unrate), "ok");
+  assert.equal(freshnessBand(cadence.real_gdp), "aging");
+  assert.equal(freshnessBand(cadence.drtscilm), "ok");
+
+  const [dailyEdge] = buildRows(
+    [{ key: "effr", label: "EFFR", value: 1, unit: "%", date: "2026-09-28" }],
+    NOW,
+    "cadence",
+  );
+  assert.equal(dailyEdge.age, 6);
+  assert.equal(dailyEdge.stale, false);
+  assert.equal(freshnessBand(dailyEdge), "aging");
+  const [dailyOver] = buildRows(
+    [{ key: "effr", label: "EFFR", value: 1, unit: "%", date: "2026-09-27" }],
+    NOW,
+    "cadence",
+  );
+  assert.equal(dailyOver.age, 7);
+  assert.equal(freshnessBand(dailyOver), "stale");
+
+  const strict = Object.fromEntries(buildRows(SNAPSHOT, NOW, "strict").map((row) => [row.key, row]));
+  assert.equal(strict.ccsa.limit, 30);
+  assert.equal(freshnessBand(strict.ccsa), "ok");
+  assert.equal(freshnessLabel(strict.ccsa), "fresh, 15d of 30d");
+  assert.equal(freshnessBand(strict.unrate), "stale");
+  assert.equal(freshnessLabel(strict.unrate), "stale, 33d of 30d");
+  const [aging] = buildRows(
+    [{ key: "cpi", label: "CPI", value: 1, unit: "%", date: "2026-09-04" }],
+    NOW,
+    "strict",
+  );
+  assert.equal(aging.age, 30);
+  assert.equal(freshnessBand(aging), "aging");
+  assert.equal(freshnessLabel(aging), "aging, 30d of 30d");
+  const [justOver] = buildRows(
+    [{ key: "cpi", label: "CPI", value: 1, unit: "%", date: "2026-09-03" }],
+    NOW,
+    "strict",
+  );
+  assert.equal(justOver.age, 31);
+  assert.equal(freshnessBand(justOver), "stale");
+
+  const [empty] = buildRows([{ key: "cpi", label: "CPI", value: null, unit: "%", date: null }], NOW, "cadence");
+  assert.equal(freshnessBand(empty), "empty");
+  assert.equal(freshnessLabel(empty), "no data");
+});
+
+test("wide columns pack whole category panels as close as their heights allow", () => {
+  const panels = [
+    ["rates", 7],
+    ["inflation", 7],
+    ["labor", 5],
+    ["growth", 6],
+    ["liquidity", 7],
+    ["credit", 7],
+    ["markets", 4],
+  ].map(([id, count]) => ({ cat: { id }, rows: Array(count), open: true }));
+  const { place } = arrangeColumns(panels);
+  assert.equal(place.get("rates").column, 0);
+  assert.equal(place.get("inflation").column, 0);
+  assert.equal(place.get("labor").column, 1);
+  assert.equal(place.get("growth").column, 1);
+  assert.equal(place.get("markets").column, 1);
+  assert.equal(place.get("liquidity").column, 2);
+  assert.equal(place.get("credit").column, 2);
+  assert.equal(place.get("markets").top > place.get("growth").top, true);
+  assert.equal(place.get("inflation").top > place.get("rates").top, true);
 });
 
 test("unknown keys go to Other, null rows are NO DATA and stale", () => {

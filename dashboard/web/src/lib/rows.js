@@ -85,6 +85,22 @@ export function countStale(rows) {
   return rows.reduce((total, row) => total + (row.stale ? 1 : 0), 0);
 }
 
+// ok through half the limit, aging through the limit, stale after it.
+// The strict preview uses the same split with limit 30 (15 / 30).
+export function freshnessBand(row) {
+  if (row.noData || row.age == null) return "empty";
+  if (row.age * 2 <= row.limit) return "ok";
+  if (row.age <= row.limit) return "aging";
+  return "stale";
+}
+
+export function freshnessLabel(row) {
+  const band = freshnessBand(row);
+  if (band === "empty") return "no data";
+  const word = band === "ok" ? "fresh" : band;
+  return `${word}, ${row.age}d of ${row.limit}d`;
+}
+
 export function cadenceSummary(rows, rule) {
   return CADENCE_ORDER.map((cadence) => {
     const members = rows.filter((row) => row.cadence === cadence);

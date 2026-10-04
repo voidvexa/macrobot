@@ -1,4 +1,4 @@
-/* ALMA Night Desk. One light theme (warm paper), square corners, 1px rules. */
+/* ALMA Night Desk. Light is the default. Dark tokens apply only when data-theme="dark". */
 :root {
   --mono: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
 }
@@ -15,6 +15,19 @@
   --c-rates: #0a5c8a; --c-inflation: #ad3a0c; --c-labor: #1b6b39; --c-growth: #6a3db5;
   --c-liquidity: #076b66; --c-credit: #ab2258; --c-markets: #765600; --c-other: #5b5a55;
   color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #0a0c0f; --panel: #0e1216; --panel-2: #131920; --chrome: #06080a; --sel: #1a2530;
+  --line: #1c232b; --line-2: #27303a;
+  --fg: #d5dce3; --fg-2: #9aa5b1; --dim: #808c9a; --strong: #ffffff;
+  --amber: #ffb224; --on-amber: #0a0c0f;
+  --green: #3ddc84; --red: #ff5f56; --neg: #ffb4ae;
+  --on-cat: #06080a;
+  --glow: 1;
+  --c-rates: #56c8f5; --c-inflation: #ff8f5a; --c-labor: #3ddc84; --c-growth: #b18cff;
+  --c-liquidity: #2ee6d6; --c-credit: #ff6b9d; --c-markets: #ffd84d; --c-other: #9aa5b1;
+  color-scheme: dark;
 }
 
 *,
@@ -370,7 +383,15 @@ kbd {
   break-inside: avoid;
   background: var(--panel);
   border: 1px solid var(--line);
+}
+
+:root .panel,
+[data-theme="light"] .panel {
   box-shadow: 0 1px 0 rgba(60, 50, 30, 0.05);
+}
+
+[data-theme="dark"] .panel {
+  box-shadow: none;
 }
 
 .panel-head {
@@ -411,7 +432,16 @@ kbd {
   flex: 1;
   min-width: 12px;
   height: 1px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 45%, transparent), transparent);
+}
+
+:root .panel-head .rule,
+[data-theme="light"] .panel-head .rule {
   background: linear-gradient(90deg, color-mix(in srgb, var(--c) 60%, transparent), transparent);
+}
+
+[data-theme="dark"] .panel-head .rule {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 45%, transparent), transparent);
 }
 
 .meta {
@@ -467,14 +497,24 @@ kbd {
   width: 6px;
   height: 6px;
   border-radius: 1px;
-  background: var(--green);
-  opacity: 0.8;
+  background: transparent;
 }
 
-.row.is-stale .sq {
+.sq-ok {
+  background: var(--green);
+}
+
+.sq-aging {
   background: var(--amber);
-  opacity: 1;
-  box-shadow: 0 0 calc(6px * var(--glow)) var(--amber);
+}
+
+.sq-stale {
+  background: var(--red);
+}
+
+.sq-empty {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--dim);
 }
 
 .label {
@@ -585,6 +625,50 @@ mark {
   margin: 4px 10px;
   border: 0;
   border-top: 1px dashed var(--line-2);
+}
+
+.fresh-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--fg-2);
+}
+
+.fresh-legend .item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Wide desk: category panels are placed into three stacks, and the status
+   strip sits underneath them across the full width. */
+.grid.is-balanced {
+  position: relative;
+  column-count: auto;
+  column-width: auto;
+}
+
+.grid.is-balanced > .panel:not(.panel-system) {
+  position: absolute;
+  top: var(--top, 0px);
+  left: calc(var(--col) * ((100% - 24px) / 3 + 12px));
+  width: calc((100% - 24px) / 3);
+  margin: 0;
+}
+
+.grid.is-balanced .panel-system .system-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.grid.is-balanced .panel-system .system-cadence {
+  align-self: stretch;
+  border-left: 1px solid var(--line);
+}
+
+.grid.is-balanced .panel-system .sep {
+  display: none;
 }
 
 .credit {

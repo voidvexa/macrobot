@@ -45,6 +45,17 @@ function Hint({ total, stale, rule, groups }) {
           {total} series · {stale} stale ({RULE_TEXT[rule]})
         </span>
       )}{" "}
+      <span className="fresh-legend">
+        <span className="item">
+          <span className="sq sq-ok" aria-hidden="true" /> ok
+        </span>
+        <span className="item">
+          <span className="sq sq-aging" aria-hidden="true" /> aging
+        </span>
+        <span className="item">
+          <span className="sq sq-stale" aria-hidden="true" /> stale
+        </span>
+      </span>{" "}
       <span className="i-dim i-end i-hints i-fit">
         / filter · 0-{groups} group · j/k move · s stale rule · o sort · esc clear
       </span>
