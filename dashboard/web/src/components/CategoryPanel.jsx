@@ -1,7 +1,7 @@
 import { cadenceLetters, countStale } from "../lib/rows.js";
 import { SeriesRow } from "./SeriesRow.jsx";
 
-export function CategoryPanel({ cat, rows, open, onToggle, needle, sel, onSelect, onHover }) {
+export function CategoryPanel({ cat, rows, open, onToggle, needle, sel, onSelect, onHover, slot }) {
   const stale = countStale(rows);
   const listId = `rows-${cat.id}`;
   const nameId = `panel-${cat.id}`;
@@ -10,7 +10,11 @@ export function CategoryPanel({ cat, rows, open, onToggle, needle, sel, onSelect
   return (
     <section
       className={open ? "panel" : "panel is-closed"}
-      style={{ "--c": `var(--c-${cat.id})` }}
+      data-panel={cat.id}
+      style={{
+        "--c": `var(--c-${cat.id})`,
+        ...(slot ? { "--col": String(slot.column), "--top": `${slot.top}px` } : null),
+      }}
       aria-labelledby={nameId}
     >
       <h3>

@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { DASH, fmtValue, period, rawText } from "../lib/format.js";
-import { splitMatch } from "../lib/rows.js";
+import { freshnessBand, freshnessLabel, splitMatch } from "../lib/rows.js";
 
 export const SeriesRow = memo(function SeriesRow({ row, needle, selected, tabStop, onSelect, onHover }) {
   const value = row.noData ? DASH : fmtValue(row.value, row.unit);
@@ -8,6 +8,8 @@ export const SeriesRow = memo(function SeriesRow({ row, needle, selected, tabSto
   const age = row.age == null ? DASH : `${row.age}d`;
   const tag = row.noData ? "NO DATA" : row.stale ? "STALE" : null;
   const unit = row.unit ? ` ${row.unit}` : "";
+  const band = freshnessBand(row);
+  const freshText = freshnessLabel(row);
   const className = ["row", row.stale && "is-stale", selected && "is-sel"].filter(Boolean).join(" ");
 
   return (
@@ -30,7 +32,7 @@ export const SeriesRow = memo(function SeriesRow({ row, needle, selected, tabSto
         if (event.pointerType === "mouse") onHover(row.key);
       }}
     >
-      <span className="sq" aria-hidden="true" />
+      <span className={`sq sq-${band}`} role="img" title={freshText} aria-label={freshText} />
       <span className="label">
         <span className="text">
           {splitMatch(row.label, needle).map((part, index) =>
@@ -53,5 +55,7 @@ function rowLabel(row, value, when) {
   if (row.noData) return `${row.label} · no data`;
   const unit = row.unit ? ` ${row.unit}` : "";
   const old = row.age === 1 ? "1 day old" : `${row.age} days old`;
-  return `${row.label} ${value}${unit} · ${when} · ${old} · ${row.stale ? "stale" : "fresh"}`;
+  const band = freshnessBand(row);
+  const state = band === "ok" ? "fresh" : band;
+  return `${row.label} ${value}${unit} · ${when} · ${old} · ${state}`;
 }
