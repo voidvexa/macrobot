@@ -18,6 +18,22 @@ from pathlib import Path
 CRON_CADENCE = timedelta(hours=2)
 DEFAULT_DB_PATH = "data/macrobot.db"
 
+# One statement per feature. Job reads meta. Stats counts. Snapshot is latest-by-date.
+JOB_SQL = "SELECT key, value FROM meta"
+
+STATS_SQL = """
+SELECT
+    (SELECT COUNT(*) FROM series_metadata) AS indicator_count,
+    (
+        SELECT COUNT(*) FROM series_metadata m
+        WHERE EXISTS (
+            SELECT 1 FROM observations o WHERE o.series_key = m.key
+        )
+    ) AS indicators_with_observations,
+    (SELECT COUNT(*) FROM observations) AS observation_count,
+    (SELECT MAX(date) FROM observations) AS newest_observation_date
+"""
+
 SNAPSHOT_SQL = """
 SELECT
     m.key,
@@ -50,7 +66,18 @@ class SnapshotRow:
 
 
 @dataclass(frozen=True)
-class DashboardStatus:
+class JobStatus:
+    db_path: str
+    db_exists: bool
+    error: str | None
+    last_run_at: str | None
+    last_run_status: str | None
+    stale: bool | None
+    ingestion_running: bool
+
+
+@dataclass(frozen=True)
+class Stats:
     db_path: str
     db_exists: bool
     db_size_bytes: int | None
@@ -58,12 +85,22 @@ class DashboardStatus:
     indicator_count: int | None
     indicators_with_observations: int | None
     observation_count: int | None
-    last_run_at: str | None
-    last_run_status: str | None
-    stale: bool | None
     newest_observation_date: str | None
-    ingestion_running: bool
-    snapshot: tuple[SnapshotRow, ...]
+
+
+@dataclass(frozen=True)
+class Snapshot:
+    db_path: str
+    db_exists: bool
+    error: str | None
+    rows: tuple[SnapshotRow, ...]
+
+
+@dataclass(frozen=True)
+class _Read:
+    rows: tuple[sqlite3.Row, ...] | None
+    db_exists: bool
+    error: str | None
 
 
 def resolve_db_path(explicit: str | None = None) -> Path:
@@ -97,61 +134,103 @@ def connect(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
-def load_status(db_path: Path, now: datetime | None = None) -> DashboardStatus:
+def load_job(db_path: Path, now: datetime | None = None) -> JobStatus:
+    """Last run, its status, staleness, and whether `python main.py` is running.
+
+    One query of `meta`. The process check reads `/proc`, not SQLite.
+    """
     running = ingestion_running()
     path_text = str(db_path)
-    if not db_path.is_file():
-        return _empty_status(path_text, running, db_exists=False, error=None)
-
-    size = db_path.stat().st_size
-    moment = now or datetime.now(timezone.utc)
-    try:
-        with closing(connect(db_path)) as conn:
-            indicator_count = _scalar(conn, "SELECT COUNT(*) FROM series_metadata")
-            with_obs = _scalar(
-                conn,
-                """
-                SELECT COUNT(*) FROM series_metadata m
-                WHERE EXISTS (
-                    SELECT 1 FROM observations o WHERE o.series_key = m.key
-                )
-                """,
-            )
-            observation_count = _scalar(conn, "SELECT COUNT(*) FROM observations")
-            meta = {
-                row["key"]: row["value"]
-                for row in conn.execute("SELECT key, value FROM meta")
-            }
-            newest = conn.execute("SELECT MAX(date) FROM observations").fetchone()[0]
-            snapshot = tuple(
-                SnapshotRow(
-                    key=row["key"],
-                    label=row["label"],
-                    value=row["value"],
-                    unit=row["unit"],
-                    date=row["date"],
-                )
-                for row in conn.execute(SNAPSHOT_SQL)
-            )
-    except sqlite3.Error as exc:
-        return _empty_status(path_text, running, db_exists=True, error=str(exc), size=size)
-
+    read = _read_one(db_path, JOB_SQL)
+    if read.rows is None:
+        return JobStatus(
+            db_path=path_text,
+            db_exists=read.db_exists,
+            error=read.error,
+            last_run_at=None,
+            last_run_status=None,
+            stale=None,
+            ingestion_running=running,
+        )
+    meta = {row["key"]: row["value"] for row in read.rows}
     last_run_at = meta.get("last_run_at")
-    return DashboardStatus(
+    moment = now or datetime.now(timezone.utc)
+    return JobStatus(
+        db_path=path_text,
+        db_exists=True,
+        error=None,
+        last_run_at=last_run_at,
+        last_run_status=meta.get("last_run_status"),
+        stale=is_stale(last_run_at, moment),
+        ingestion_running=running,
+    )
+
+
+def load_stats(db_path: Path) -> Stats:
+    """Counts, newest observation date, and the database file size.
+
+    One SQL statement. File size is `stat`, beside that query.
+    """
+    path_text = str(db_path)
+    size = db_path.stat().st_size if db_path.is_file() else None
+    read = _read_one(db_path, STATS_SQL)
+    if read.rows is None:
+        return Stats(
+            db_path=path_text,
+            db_exists=read.db_exists,
+            db_size_bytes=size,
+            error=read.error,
+            indicator_count=None,
+            indicators_with_observations=None,
+            observation_count=None,
+            newest_observation_date=None,
+        )
+    row = read.rows[0]
+    return Stats(
         db_path=path_text,
         db_exists=True,
         db_size_bytes=size,
         error=None,
-        indicator_count=indicator_count,
-        indicators_with_observations=with_obs,
-        observation_count=observation_count,
-        last_run_at=last_run_at,
-        last_run_status=meta.get("last_run_status"),
-        stale=is_stale(last_run_at, moment),
-        newest_observation_date=newest,
-        ingestion_running=running,
-        snapshot=snapshot,
+        indicator_count=int(row["indicator_count"] or 0),
+        indicators_with_observations=int(row["indicators_with_observations"] or 0),
+        observation_count=int(row["observation_count"] or 0),
+        newest_observation_date=row["newest_observation_date"],
     )
+
+
+def load_snapshot(db_path: Path) -> Snapshot:
+    """Latest row per series by MAX(date): key, label, value, unit, date."""
+    path_text = str(db_path)
+    read = _read_one(db_path, SNAPSHOT_SQL)
+    if read.rows is None:
+        return Snapshot(
+            db_path=path_text,
+            db_exists=read.db_exists,
+            error=read.error,
+            rows=(),
+        )
+    rows = tuple(
+        SnapshotRow(
+            key=row["key"],
+            label=row["label"],
+            value=row["value"],
+            unit=row["unit"],
+            date=row["date"],
+        )
+        for row in read.rows
+    )
+    return Snapshot(db_path=path_text, db_exists=True, error=None, rows=rows)
+
+
+def _read_one(db_path: Path, sql: str) -> _Read:
+    """Run one statement. A missing file is not created and is not queried."""
+    if not db_path.is_file():
+        return _Read(rows=None, db_exists=False, error=None)
+    try:
+        with closing(connect(db_path)) as conn:
+            return _Read(rows=tuple(conn.execute(sql)), db_exists=True, error=None)
+    except sqlite3.Error as exc:
+        return _Read(rows=None, db_exists=True, error=str(exc))
 
 
 def is_stale(last_run_at: str | None, now: datetime) -> bool:
@@ -229,36 +308,6 @@ def _process_argvs() -> list[tuple[int, list[str]]]:
         if args:
             found.append((int(entry.name), args))
     return found
-
-
-def _scalar(conn: sqlite3.Connection, sql: str) -> int:
-    value = conn.execute(sql).fetchone()[0]
-    return int(value or 0)
-
-
-def _empty_status(
-    path_text: str,
-    running: bool,
-    *,
-    db_exists: bool,
-    error: str | None,
-    size: int | None = None,
-) -> DashboardStatus:
-    return DashboardStatus(
-        db_path=path_text,
-        db_exists=db_exists,
-        db_size_bytes=size,
-        error=error,
-        indicator_count=None,
-        indicators_with_observations=None,
-        observation_count=None,
-        last_run_at=None,
-        last_run_status=None,
-        stale=None,
-        newest_observation_date=None,
-        ingestion_running=running,
-        snapshot=(),
-    )
 
 
 def _dotenv_value(path: Path, key: str) -> str:

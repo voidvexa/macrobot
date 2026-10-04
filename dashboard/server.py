@@ -1,7 +1,8 @@
 """Localhost JSON for the React dashboard.
 
-GET /api/status is the only data route. The page lives in dashboard/web and
-calls this API. SQLite stays here, opened read-only.
+Three data routes, one feature each: GET /api/job, GET /api/stats, and
+GET /api/snapshot. The page lives in dashboard/web and calls all three.
+SQLite stays here, opened read-only.
 """
 
 from __future__ import annotations
@@ -14,13 +15,22 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-from dashboard.read import DashboardStatus, load_status, resolve_db_path
+from dashboard.read import JobStatus, Snapshot, Stats, load_job, load_snapshot, load_stats, resolve_db_path
 
 DEFAULT_PORT = 8765
 HOST = "127.0.0.1"
 
-# Fields the React page reads. Keep this list in sync with dashboard/web.
-STATUS_FIELDS = (
+# Fields the React page reads. Keep these lists in sync with dashboard/web.
+JOB_FIELDS = (
+    "db_path",
+    "db_exists",
+    "error",
+    "last_run_at",
+    "last_run_status",
+    "stale",
+    "ingestion_running",
+)
+STATS_FIELDS = (
     "db_path",
     "db_exists",
     "db_size_bytes",
@@ -28,14 +38,15 @@ STATUS_FIELDS = (
     "indicator_count",
     "indicators_with_observations",
     "observation_count",
-    "last_run_at",
-    "last_run_status",
-    "stale",
     "newest_observation_date",
-    "ingestion_running",
-    "snapshot",
 )
 SNAPSHOT_FIELDS = ("key", "label", "value", "unit", "date")
+SNAPSHOT_RESPONSE_FIELDS = (
+    "db_path",
+    "db_exists",
+    "error",
+    "snapshot",
+)
 
 
 def make_server(port: int, db_path: Path) -> ThreadingHTTPServer:
@@ -48,8 +59,16 @@ def make_server(port: int, db_path: Path) -> ThreadingHTTPServer:
                 self.send_response(204)
                 self.end_headers()
                 return
-            if route == "/api/status":
-                body = json.dumps(status_payload(load_status(db_path))).encode("utf-8")
+            if route == "/api/job":
+                body = json.dumps(job_payload(load_job(db_path))).encode("utf-8")
+                self._send(200, body, "application/json; charset=utf-8")
+                return
+            if route == "/api/stats":
+                body = json.dumps(stats_payload(load_stats(db_path))).encode("utf-8")
+                self._send(200, body, "application/json; charset=utf-8")
+                return
+            if route == "/api/snapshot":
+                body = json.dumps(snapshot_payload(load_snapshot(db_path))).encode("utf-8")
                 self._send(200, body, "application/json; charset=utf-8")
                 return
             if route in ("/", "/index.html"):
@@ -72,20 +91,36 @@ def make_server(port: int, db_path: Path) -> ThreadingHTTPServer:
     return ThreadingHTTPServer((HOST, port), Handler)
 
 
-def status_payload(status: DashboardStatus) -> dict:
+def job_payload(job: JobStatus) -> dict:
     return {
-        "db_path": status.db_path,
-        "db_exists": status.db_exists,
-        "db_size_bytes": status.db_size_bytes,
-        "error": status.error,
-        "indicator_count": status.indicator_count,
-        "indicators_with_observations": status.indicators_with_observations,
-        "observation_count": status.observation_count,
-        "last_run_at": status.last_run_at,
-        "last_run_status": status.last_run_status,
-        "stale": status.stale,
-        "newest_observation_date": status.newest_observation_date,
-        "ingestion_running": status.ingestion_running,
+        "db_path": job.db_path,
+        "db_exists": job.db_exists,
+        "error": job.error,
+        "last_run_at": job.last_run_at,
+        "last_run_status": job.last_run_status,
+        "stale": job.stale,
+        "ingestion_running": job.ingestion_running,
+    }
+
+
+def stats_payload(stats: Stats) -> dict:
+    return {
+        "db_path": stats.db_path,
+        "db_exists": stats.db_exists,
+        "db_size_bytes": stats.db_size_bytes,
+        "error": stats.error,
+        "indicator_count": stats.indicator_count,
+        "indicators_with_observations": stats.indicators_with_observations,
+        "observation_count": stats.observation_count,
+        "newest_observation_date": stats.newest_observation_date,
+    }
+
+
+def snapshot_payload(snapshot: Snapshot) -> dict:
+    return {
+        "db_path": snapshot.db_path,
+        "db_exists": snapshot.db_exists,
+        "error": snapshot.error,
         "snapshot": [
             {
                 "key": row.key,
@@ -94,7 +129,7 @@ def status_payload(status: DashboardStatus) -> dict:
                 "unit": row.unit,
                 "date": row.date,
             }
-            for row in status.snapshot
+            for row in snapshot.rows
         ],
     }
 
@@ -116,7 +151,10 @@ def main(argv: list[str] | None = None) -> None:
     db_path = resolve_db_path(args.db)
     server = make_server(args.port, db_path)
     print(f"Macrobot API reading {db_path}", flush=True)
-    print(f"http://{HOST}:{args.port}/api/status", flush=True)
+    base = f"http://{HOST}:{args.port}"
+    print(f"{base}/api/job", flush=True)
+    print(f"{base}/api/stats", flush=True)
+    print(f"{base}/api/snapshot", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -209,10 +209,24 @@ neither writes `macrobot.db`. Ingestion stays `python main.py`.
 
 The API is the Python reader. It opens `data/macrobot.db` (or `SQLITE_DB_PATH`
 from the environment / `.env`, the same default as `config.py`) with `mode=ro`
-and `PRAGMA query_only`, and serves `GET /api/status`. It imports nothing from
-`checker` or `macro/`, and it does not load the ingestion stack
-(`dashboard/requirements.txt` is empty; the standard library is enough).
-SQLite stays in that process. The React app only calls the API.
+and `PRAGMA query_only`. It imports nothing from `checker` or `macro/`, and it
+does not load the ingestion stack (`dashboard/requirements.txt` is empty; the
+standard library is enough). SQLite stays in that process. The React app only
+calls the API.
+
+Each feature is its own route, its own service function, and its own SQL
+statement:
+
+- `GET /api/job` — last run time, `last_run_status`, stale when that time is
+  older than two hours, and whether `python main.py` is running (idle between
+  cron runs). One query of the `meta` table. The process check is not a second
+  SQL statement.
+- `GET /api/stats` — indicator count, how many of those have an observation,
+  observation count, database file size, and newest observation date. One SQL
+  statement. File size is a filesystem stat beside that query.
+- `GET /api/snapshot` — latest row per series by `MAX(date)`: key, label,
+  value, unit, date. One SQL statement (the consumer query in
+  `DB_INTEGRATION.md`).
 
 From the repo root, in two terminals:
 
@@ -230,16 +244,9 @@ proxies `/api` to that port. If you change the API port, set `DASHBOARD_PORT`
 (or pass `--port`) before starting both. There is no auth, so leave both on
 localhost. `--db` overrides the file for a one-off.
 
-`GET /api/status` is the stats, then the latest snapshot. Stats: distinct
-indicators in `series_metadata`, how many of those have an observation,
-observation count, `last_run_at`, `last_run_status`, stale when `last_run_at`
-is older than two hours, whether `python main.py` is running (idle between
-cron runs), database file size, and newest observation date. The snapshot is
-the consumer query in `DB_INTEGRATION.md` (latest row per series by
-`MAX(date)`): key, label, value, unit, date.
-
-The React page is a light monospace readout: plain labels, fixed-width
-figures, simple borders. No charts and no AI summary.
+The React page calls all three when it opens. There is no timer. The snapshot
+stays above the status block. The page is a light monospace readout: plain
+labels, fixed-width figures, simple borders. No charts and no AI summary.
 
 Checks, with a temporary database and no network:
 

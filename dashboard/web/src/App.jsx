@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 
 export default function App() {
-  const [data, setData] = useState(null);
+  const [job, setJob] = useState(null);
+  const [stats, setStats] = useState(null);
+  const [snapshot, setSnapshot] = useState(null);
   const [error, setError] = useState(null);
   const [now, setNow] = useState(() => Date.now());
 
@@ -10,13 +12,15 @@ export default function App() {
 
     async function load() {
       try {
-        const response = await fetch("/api/status");
-        if (!response.ok) {
-          throw new Error(`api ${response.status}`);
-        }
-        const payload = await response.json();
+        const [jobPayload, statsPayload, snapshotPayload] = await Promise.all([
+          getJson("/api/job"),
+          getJson("/api/stats"),
+          getJson("/api/snapshot"),
+        ]);
         if (!cancelled) {
-          setData(payload);
+          setJob(jobPayload);
+          setStats(statsPayload);
+          setSnapshot(snapshotPayload);
           setNow(Date.now());
         }
       } catch (err) {
@@ -44,16 +48,7 @@ export default function App() {
       </header>
       <p>read-only. cron still writes.</p>
       {error ? <p className="notice">api: {error}</p> : null}
-      {data && !data.db_exists ? (
-        <p className="notice">
-          database file is not there yet: {data.db_path}. the cron job creates it on the first run.
-        </p>
-      ) : null}
-      {data?.error ? (
-        <p className="notice">
-          could not read the database ({data.db_path}): {data.error}
-        </p>
-      ) : null}
+      {readNotice(job, stats, snapshot)}
       <h2>latest snapshot</h2>
       <table>
         <thead>
@@ -66,27 +61,53 @@ export default function App() {
           </tr>
         </thead>
         <tbody>
-          {snapshotRows(data)}
+          {snapshotRows(snapshot)}
         </tbody>
       </table>
       <h2>status</h2>
       <table className="readout">
         <tbody>
-          <Row label="indicators" value={indicatorText(data)} />
-          <Row label="observations" value={data ? formatCount(data.observation_count) : "—"} />
-          <Row label="last_run" value={data ? runText(data, now) : "—"} />
-          <Row label="freshness" value={freshText(data)} />
-          <Row label="ingestion" value={data ? (data.ingestion_running ? "running" : "idle") : "—"} />
-          <Row label="database" value={data ? formatBytes(data.db_size_bytes) : "—"} />
-          <Row label="path" value={data?.db_path ?? "—"} path />
-          <Row label="newest" value={data?.newest_observation_date || "—"} />
+          <Row label="indicators" value={indicatorText(stats)} />
+          <Row label="observations" value={stats ? formatCount(stats.observation_count) : "—"} />
+          <Row label="last_run" value={job ? runText(job, now) : "—"} />
+          <Row label="freshness" value={freshText(job)} />
+          <Row label="ingestion" value={job ? (job.ingestion_running ? "running" : "idle") : "—"} />
+          <Row label="database" value={stats ? formatBytes(stats.db_size_bytes) : "—"} />
+          <Row label="path" value={stats?.db_path ?? "—"} path />
+          <Row label="newest" value={stats?.newest_observation_date || "—"} />
         </tbody>
       </table>
-      <footer>
-        localhost only. this page does not write the database. stale when
-        last_run_at is older than 2 hours. ingestion is idle between cron runs.
-      </footer>
+      <p className="credit">powered by ©voidvexa</p>
     </main>
+  );
+}
+
+async function getJson(path) {
+  const response = await fetch(path);
+  if (!response.ok) {
+    throw new Error(`api ${response.status}`);
+  }
+  return response.json();
+}
+
+function readNotice(job, stats, snapshot) {
+  const parts = [job, stats, snapshot].filter(Boolean);
+  const missing = parts.find((item) => item.db_exists === false);
+  if (missing) {
+    return (
+      <p className="notice">
+        database file is not there yet: {missing.db_path}. the cron job creates it on the first run.
+      </p>
+    );
+  }
+  const failed = parts.find((item) => item.error);
+  if (!failed) {
+    return null;
+  }
+  return (
+    <p className="notice">
+      could not read the database ({failed.db_path}): {failed.error}
+    </p>
   );
 }
 
@@ -99,12 +120,12 @@ function Row({ label, value, path = false }) {
   );
 }
 
-function snapshotRows(data) {
-  const rows = data?.snapshot ?? [];
-  if (!data) {
+function snapshotRows(snapshot) {
+  const rows = snapshot?.snapshot ?? [];
+  if (!snapshot) {
     return (
       <tr>
-        <td colSpan={5}>waiting for /api/status</td>
+        <td colSpan={5}>waiting for /api/snapshot</td>
       </tr>
     );
   }
@@ -126,12 +147,12 @@ function snapshotRows(data) {
   ));
 }
 
-function indicatorText(data) {
-  if (!data || data.indicator_count == null) {
+function indicatorText(stats) {
+  if (!stats || stats.indicator_count == null) {
     return "—";
   }
-  const observed = data.indicators_with_observations == null ? "—" : String(data.indicators_with_observations);
-  return `${data.indicator_count} / ${observed} with data`;
+  const observed = stats.indicators_with_observations == null ? "—" : String(stats.indicators_with_observations);
+  return `${stats.indicator_count} / ${observed} with data`;
 }
 
 function formatCount(value) {
@@ -141,21 +162,21 @@ function formatCount(value) {
   return Number(value).toLocaleString("en-US");
 }
 
-function runText(data, now) {
-  if (!data.db_exists || data.error) {
+function runText(job, now) {
+  if (!job.db_exists || job.error) {
     return "—";
   }
-  const when = data.last_run_at || "missing";
-  const state = data.last_run_status || "missing";
-  const age = agePhrase(data.last_run_at, now);
+  const when = job.last_run_at || "missing";
+  const state = job.last_run_status || "missing";
+  const age = agePhrase(job.last_run_at, now);
   return age ? `${when} UTC  ${state}  ${age}` : `${when} UTC  ${state}`;
 }
 
-function freshText(data) {
-  if (!data || data.stale == null) {
+function freshText(job) {
+  if (!job || job.stale == null) {
     return "—";
   }
-  return data.stale ? "stale" : "current";
+  return job.stale ? "stale" : "current";
 }
 
 function agePhrase(lastRunAt, now) {
