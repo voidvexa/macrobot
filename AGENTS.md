@@ -66,9 +66,14 @@ daemon mode.
 - `meta` — key/value run markers: `last_run_at` (UTC) and `last_run_status`
   (`ok` | `partial` | `failed`). Lets a consumer tell "the market is quiet"
   apart from "the job is dead".
+- `regime` — one row per opinion from a downstream bot: `datetime` (UTC,
+  `YYYY-MM-DD HH:MM:SS`, primary key) and `regime` (the text). `init_db()`
+  creates the empty table. This job never writes a row. The bot inserts
+  one, twice a day. Latest is `MAX(datetime)`.
 
-"Latest" is always decided by `MAX(date)`, never by insertion order — see
-the stale-reading gotcha below.
+"Latest" for an indicator is always decided by `MAX(date)`, never by
+insertion order — see the stale-reading gotcha below. The same rule applies
+to `regime`: `MAX(datetime)`, not the last inserted row.
 
 There used to be an `updates` table acting as a pending-alert queue for an
 external consumer (see git history). It was removed: nothing advanced its
@@ -232,6 +237,9 @@ statement:
 - `GET /api/snapshot` — latest row per series by `MAX(date)`: key, label,
   value, unit, date. One SQL statement (the consumer query in
   `DB_INTEGRATION.md`).
+- `GET /api/regime` — latest row in `regime` by `MAX(datetime)`: the UTC
+  timestamp and the regime text. One SQL statement. An empty table returns
+  nulls. The page does not call this route.
 
 From the repo root, in two terminals:
 

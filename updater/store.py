@@ -106,6 +106,14 @@ def init_db(custom_path: Optional[str] = None) -> None:
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
+            -- Written by a downstream bot, never by this job. `datetime` is
+            -- UTC text in `YYYY-MM-DD HH:MM:SS` form so MAX(datetime) is the
+            -- newest opinion. One row per timestamp.
+            CREATE TABLE IF NOT EXISTS regime (
+                datetime TEXT PRIMARY KEY,
+                regime TEXT NOT NULL
+            );
+
             -- One row per (series, date) is the core invariant. Databases
             -- created before this constraint existed may hold duplicates, so
             -- collapse them (keeping the most recently written) before the

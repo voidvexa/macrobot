@@ -21,6 +21,7 @@ from urllib.request import urlopen
 import dashboard.read as reader
 from dashboard.read import (
     JOB_SQL,
+    REGIME_SQL,
     SNAPSHOT_SQL,
     STATS_SQL,
     connect,
@@ -28,17 +29,20 @@ from dashboard.read import (
     is_ingestion_argv,
     is_stale,
     load_job,
+    load_regime,
     load_snapshot,
     load_stats,
     resolve_db_path,
 )
 from dashboard.server import (
     JOB_FIELDS,
+    REGIME_FIELDS,
     SNAPSHOT_FIELDS,
     SNAPSHOT_RESPONSE_FIELDS,
     STATS_FIELDS,
     job_payload,
     make_server,
+    regime_payload,
     snapshot_payload,
     stats_payload,
 )
@@ -63,6 +67,10 @@ CREATE TABLE meta (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE regime (
+    datetime TEXT PRIMARY KEY,
+    regime TEXT NOT NULL
 );
 CREATE UNIQUE INDEX idx_obs_key_date ON observations(series_key, date);
 """
@@ -238,6 +246,10 @@ class ReadTests(unittest.TestCase):
                     conn.execute("UPDATE observations SET value = 0")
                 with self.assertRaises(sqlite3.OperationalError):
                     conn.execute("DELETE FROM series_metadata")
+                with self.assertRaises(sqlite3.OperationalError):
+                    conn.execute(
+                        "INSERT INTO regime (datetime, regime) VALUES ('2026-10-04 12:00:00', 'soft landing')"
+                    )
             finally:
                 conn.close()
             self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), digest)
@@ -252,10 +264,12 @@ class ReadTests(unittest.TestCase):
             job, job_sql = _trace(lambda: load_job(path))
             stats, stats_sql = _trace(lambda: load_stats(path))
             snapshot, snapshot_sql = _trace(lambda: load_snapshot(path))
+            regime, regime_sql = _trace(lambda: load_regime(path))
             self.assertFalse(path.exists())
         self.assertEqual(job_sql, [])
         self.assertEqual(stats_sql, [])
         self.assertEqual(snapshot_sql, [])
+        self.assertEqual(regime_sql, [])
         self.assertFalse(job.db_exists)
         self.assertIsNone(job.last_run_at)
         self.assertIsNone(job.stale)
@@ -264,9 +278,13 @@ class ReadTests(unittest.TestCase):
         self.assertIsNone(stats.db_size_bytes)
         self.assertFalse(snapshot.db_exists)
         self.assertEqual(snapshot.rows, ())
+        self.assertFalse(regime.db_exists)
+        self.assertIsNone(regime.datetime)
+        self.assertIsNone(regime.regime)
         self.assertFalse(job_payload(job)["db_exists"])
         self.assertIsNone(stats_payload(stats)["indicator_count"])
         self.assertEqual(snapshot_payload(snapshot)["snapshot"], [])
+        self.assertIsNone(regime_payload(regime)["regime"])
 
     def test_path_resolution_matches_env_then_dotenv(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -394,6 +412,65 @@ class ApiTests(unittest.TestCase):
         self.assertNotIn("last_run_at", payload)
         self.assertNotIn("ingestion_running", payload)
         self.assertNotIn("db_size_bytes", payload)
+
+    def test_regime_uses_max_datetime(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "macrobot.db"
+            _build_db(path, "2026-10-03 18:00:00", "ok")
+            with closing(sqlite3.connect(path)) as conn:
+                # Newer rowid with an older timestamp must not win.
+                conn.execute(
+                    "INSERT INTO regime (datetime, regime) VALUES (?, ?)",
+                    ("2026-10-04 18:00:00", "disinflationary expansion"),
+                )
+                conn.execute(
+                    "INSERT INTO regime (datetime, regime) VALUES (?, ?)",
+                    ("2026-10-03 06:00:00", "stagflation"),
+                )
+                conn.commit()
+            regime, statements = _trace(lambda: load_regime(path))
+        self.assertEqual(statements, [_norm(REGIME_SQL)])
+        self.assertNotIn("observations", statements[0])
+        self.assertIsNone(regime.error)
+        self.assertEqual(regime.datetime, "2026-10-04 18:00:00")
+        self.assertEqual(regime.regime, "disinflationary expansion")
+        payload = regime_payload(regime)
+        self.assertEqual(tuple(payload), REGIME_FIELDS)
+        self.assertNotIn("snapshot", payload)
+        self.assertNotIn("last_run_at", payload)
+
+    def test_regime_is_empty_until_a_bot_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "macrobot.db"
+            _build_db(path, "2026-10-03 18:00:00", "ok")
+            regime = load_regime(path)
+        self.assertTrue(regime.db_exists)
+        self.assertIsNone(regime.error)
+        self.assertIsNone(regime.datetime)
+        self.assertIsNone(regime.regime)
+
+    def test_regime_route(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "macrobot.db"
+            _build_db(path, "2026-10-03 18:00:00", "ok")
+            with closing(sqlite3.connect(path)) as conn:
+                conn.execute(
+                    "INSERT INTO regime (datetime, regime) VALUES (?, ?)",
+                    ("2026-10-04 06:00:00", "soft landing"),
+                )
+                conn.execute(
+                    "INSERT INTO regime (datetime, regime) VALUES (?, ?)",
+                    ("2026-10-04 18:00:00", "disinflationary expansion"),
+                )
+                conn.commit()
+            payload = _get_route(path, "/api/regime")
+        self.assertEqual(tuple(payload), REGIME_FIELDS)
+        self.assertIsNone(payload["error"])
+        self.assertEqual(payload["datetime"], "2026-10-04 18:00:00")
+        self.assertEqual(payload["regime"], "disinflationary expansion")
+        self.assertNotIn("snapshot", payload)
+        self.assertNotIn("last_run_at", payload)
+        self.assertNotIn("indicator_count", payload)
 
     def test_combined_status_route_is_gone(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

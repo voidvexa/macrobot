@@ -198,6 +198,24 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(observations[("vix", "2026-10-01")], 12.5)
         self.assertEqual(sum(1 for key, _date in observations if key == "vix"), 1)
 
+    def test_init_db_creates_regime_and_keeps_rows(self) -> None:
+        with _fresh_db() as path:
+            init_db()
+            conn = sqlite3.connect(path)
+            conn.execute(
+                "INSERT INTO regime (datetime, regime) VALUES (?, ?)",
+                ("2026-10-04 08:00:00", "soft landing"),
+            )
+            conn.commit()
+            conn.close()
+            init_db()
+            conn = sqlite3.connect(path)
+            columns = [row[1] for row in conn.execute("PRAGMA table_info(regime)")]
+            rows = list(conn.execute("SELECT datetime, regime FROM regime"))
+            conn.close()
+        self.assertEqual(columns, ["datetime", "regime"])
+        self.assertEqual(rows, [("2026-10-04 08:00:00", "soft landing")])
+
 
 class EntryTests(unittest.TestCase):
     def test_log_directory_stays_at_the_repo_root(self) -> None:
