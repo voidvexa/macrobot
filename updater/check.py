@@ -1,8 +1,8 @@
 from loguru import logger
-from macro.fred import fetch_fred_data
-from macro.live import fetch_live_data
-from macro.treasury import fetch_treasury_data
-from db import (
+from updater.sources.fred import fetch_fred_data
+from updater.sources.live import fetch_live_data
+from updater.sources.treasury import fetch_treasury_data
+from updater.store import (
     get_series_metadata,
     get_latest_observations,
     upsert_observation,

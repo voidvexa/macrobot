@@ -1,5 +1,3 @@
-"""One ingestion run, observed through the SQLite file it writes."""
-
 from __future__ import annotations
 
 import sqlite3
@@ -9,9 +7,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
-from checker import run_check
-from config import settings
-from db import init_db
+from updater.check import run_check
+from updater.config import settings
+from updater.store import init_db
 
 
 @contextmanager
@@ -56,9 +54,9 @@ def _full():
 
 def _run(fred, live, treasury) -> None:
     with (
-        patch("checker.fetch_fred_data", return_value=fred),
-        patch("checker.fetch_live_data", return_value=live),
-        patch("checker.fetch_treasury_data", return_value=treasury),
+        patch("updater.check.fetch_fred_data", return_value=fred),
+        patch("updater.check.fetch_live_data", return_value=live),
+        patch("updater.check.fetch_treasury_data", return_value=treasury),
     ):
         run_check()
 
@@ -199,6 +197,15 @@ class CheckTests(unittest.TestCase):
             observations, _meta, _labels = _read(path)
         self.assertEqual(observations[("vix", "2026-10-01")], 12.5)
         self.assertEqual(sum(1 for key, _date in observations if key == "vix"), 1)
+
+
+class EntryTests(unittest.TestCase):
+    def test_log_directory_stays_at_the_repo_root(self) -> None:
+        import updater.__main__ as entry
+
+        repo = Path(__file__).resolve().parent.parent
+        self.assertEqual(entry.LOG_DIR, repo / "logs")
+        self.assertTrue(entry.LOG_DIR.is_dir())
 
 
 if __name__ == "__main__":

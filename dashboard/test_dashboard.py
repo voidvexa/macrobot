@@ -274,8 +274,12 @@ class ReadTests(unittest.TestCase):
             previous = os.environ.get("SQLITE_DB_PATH")
             os.chdir(tmp)
             try:
-                Path(".env").write_text('export SQLITE_DB_PATH="from-dotenv.db"\n', encoding="utf-8")
                 os.environ.pop("SQLITE_DB_PATH", None)
+                Path(".env").write_text("SQLITE_DB_PATH=foo.db  # note\n", encoding="utf-8")
+                self.assertEqual(resolve_db_path(), Path("foo.db"))
+                Path(".env").write_text("sqlite_db_path=lower.db\n", encoding="utf-8")
+                self.assertEqual(resolve_db_path(), Path("lower.db"))
+                Path(".env").write_text('export SQLITE_DB_PATH="from-dotenv.db"\n', encoding="utf-8")
                 self.assertEqual(resolve_db_path(), Path("from-dotenv.db"))
                 os.environ["SQLITE_DB_PATH"] = "from-env.db"
                 self.assertEqual(resolve_db_path(), Path("from-env.db"))
@@ -289,28 +293,31 @@ class ReadTests(unittest.TestCase):
 
 
 class ProcessTests(unittest.TestCase):
-    def test_argv_matches_main_py_only(self) -> None:
-        self.assertTrue(is_ingestion_argv(["/opt/macrobot/.venv/bin/python", "main.py"]))
-        self.assertTrue(is_ingestion_argv(["python3", "/opt/macrobot/main.py"]))
-        self.assertTrue(is_ingestion_argv(["python", "-u", "main.py"]))
+    def test_argv_matches_updater_module_only(self) -> None:
+        self.assertTrue(is_ingestion_argv(["/opt/macrobot/.venv/bin/python", "-m", "updater"]))
+        self.assertTrue(is_ingestion_argv(["python3", "-u", "-m", "updater"]))
         self.assertFalse(is_ingestion_argv(["python", "-m", "dashboard"]))
-        self.assertFalse(is_ingestion_argv(["python3", "-c", "import main"]))
-        self.assertFalse(is_ingestion_argv(["python", "/opt/macrobot/dashboard/__main__.py"]))
-        self.assertFalse(is_ingestion_argv(["vim", "main.py"]))
+        self.assertFalse(is_ingestion_argv(["python", "-m", "updater.sources"]))
+        self.assertFalse(is_ingestion_argv(["python3", "-c", "import updater"]))
+        self.assertFalse(is_ingestion_argv(["python", "/opt/macrobot/updater/__main__.py"]))
+        self.assertFalse(is_ingestion_argv(["python", "main.py"]))
+        self.assertFalse(is_ingestion_argv(["vim", "-m", "updater"]))
         self.assertFalse(is_ingestion_argv([]))
 
-    def test_live_process_scan_ignores_this_process_and_sees_main_py(self) -> None:
+    def test_live_process_scan_ignores_this_process_and_sees_updater(self) -> None:
         own = Path(f"/proc/{os.getpid()}/cmdline").read_bytes()
         own_args = [part for part in own.decode().split("\0") if part]
         self.assertFalse(is_ingestion_argv(own_args))
 
         if ingestion_running():
-            self.skipTest("python main.py is already running on this host")
+            self.skipTest("python -m updater is already running on this host")
 
         with tempfile.TemporaryDirectory() as tmp:
-            script = Path(tmp) / "main.py"
-            script.write_text("import time\ntime.sleep(30)\n", encoding="utf-8")
-            proc = subprocess.Popen([sys.executable, str(script)])
+            package = Path(tmp) / "updater"
+            package.mkdir()
+            (package / "__init__.py").write_text("", encoding="utf-8")
+            (package / "__main__.py").write_text("import time\ntime.sleep(30)\n", encoding="utf-8")
+            proc = subprocess.Popen([sys.executable, "-m", "updater"], cwd=tmp)
             try:
                 seen = False
                 for _ in range(50):
@@ -426,7 +433,7 @@ class PageTests(unittest.TestCase):
 class IsolationTests(unittest.TestCase):
     def test_dashboard_source_does_not_import_ingestion(self) -> None:
         root = Path(__file__).resolve().parent
-        forbidden = {"checker", "macro", "db", "config", "yfinance", "pandas", "numpy"}
+        forbidden = {"updater", "yfinance", "pandas", "numpy"}
         for path in root.glob("*.py"):
             if path.name.startswith("test_"):
                 continue
@@ -439,7 +446,7 @@ class IsolationTests(unittest.TestCase):
                     names = [(node.module or "").split(".")[0]]
                 self.assertTrue(forbidden.isdisjoint(names), f"{path.name} imports {names}")
 
-        self.assertNotIn("checker", sys.modules)
+        self.assertNotIn("updater", sys.modules)
         self.assertNotIn("yfinance", sys.modules)
         self.assertNotIn("pandas", sys.modules)
         self.assertNotIn("numpy", sys.modules)

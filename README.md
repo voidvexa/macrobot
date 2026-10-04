@@ -1,6 +1,10 @@
 # Macrobot
 
-Macrobot fetches a fixed set of U.S. macro and market indicators, writes them to a local SQLite file, and exits. Run it on a schedule — every two hours is the intended cadence. Between runs nothing stays up. The database is the whole state.
+Two programs share `data/macrobot.db`.
+
+`updater` fetches a fixed set of U.S. macro and market indicators, writes them to that file, and exits. Run it every two hours. Between those runs the updater process is gone.
+
+`dashboard` reads the same file and serves a localhost page. It does not fetch data and it does not write the database. The commands are in [AGENTS.md](AGENTS.md).
 
 Alerts live outside this repo. A reader opens `data/macrobot.db` and decides what is worth flagging. The schema and example queries are in [DB_INTEGRATION.md](DB_INTEGRATION.md).
 
@@ -32,7 +36,7 @@ cp .env.example .env
 Add a [FRED API key](https://fred.stlouisfed.org/docs/api/api_key.html) to `.env`. Without one, FRED series are skipped and only VIX, MOVE, SKEW, and TGA are stored.
 
 ```bash
-.venv/bin/python main.py
+.venv/bin/python -m updater
 ```
 
 That creates `data/macrobot.db` and a rotating log at `logs/macrobot.log`. A healthy first run fills all 43 series and records `last_run_status` as `ok`.
@@ -40,7 +44,7 @@ That creates `data/macrobot.db` and a rotating log at `logs/macrobot.log`. A hea
 Every two hours, with cron output discarded (the app already rotates its own log):
 
 ```
-0 */2 * * * cd /path/to/macrobot && .venv/bin/python main.py >/dev/null 2>&1
+0 */2 * * * cd /path/to/macrobot && .venv/bin/python -m updater >/dev/null 2>&1
 ```
 
 ## The database
