@@ -42,6 +42,7 @@ h1 {
 .masthead {
   --mark: 5.25rem;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: flex-start;
   gap: 1.5rem;
@@ -134,4 +135,17 @@ td.path {
 .credit {
   margin: 1rem 0 0;
   font-size: 0.75rem;
+}
+
+/* Below the status line's one-line width, wrap instead of scrolling sideways. */
+@media (max-width: 42rem) {
+  th,
+  td,
+  td.num,
+  th.num,
+  .readout th,
+  .masthead .deck span {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
 }
