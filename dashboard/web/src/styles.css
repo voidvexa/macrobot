@@ -35,6 +35,52 @@ h1 {
   margin: 0 0 0.25rem;
 }
 
+/* Nameplate: ALMA on the left, a three-line stack on the right.
+   The stack block is the cap height of ALMA, not a subtitle under it. */
+.masthead {
+  --mark: 5.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  width: 100%;
+  margin: 0 0 0.75rem;
+}
+
+.masthead h1 {
+  margin: 0;
+  font-size: var(--mark);
+  font-weight: normal;
+  line-height: 1;
+  letter-spacing: 0;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+}
+
+.masthead .deck {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  box-sizing: border-box;
+  height: 1cap;
+  margin: 0;
+  font-size: var(--mark);
+  font-weight: normal;
+  line-height: 1;
+  text-align: left;
+}
+
+.masthead .deck span {
+  display: block;
+  font-size: calc(var(--mark) / 3.35);
+  font-weight: normal;
+  line-height: 1;
+  white-space: nowrap;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+}
+
 h2 {
   margin: 1.25rem 0 0.4rem;
 }

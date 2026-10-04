@@ -39,7 +39,14 @@ export default function App() {
 
   return (
     <main>
-      <h1>macrobot</h1>
+      <header className="masthead">
+        <h1>ALMA</h1>
+        <p className="deck">
+          <span>A LIGHTWEIGHT</span>
+          <span>MACROECONOMIC</span>
+          <span>ANALYST</span>
+        </p>
+      </header>
       <p>read-only. cron still writes.</p>
       {error ? <p className="notice">api: {error}</p> : null}
       {data && !data.db_exists ? (
