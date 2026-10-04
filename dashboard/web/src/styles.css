@@ -17,8 +17,11 @@ body {
   line-height: 1.45;
 }
 
+/* Wide screens keep this measure and center it. Narrow screens stay full width. */
 main {
-  max-width: 88ch;
+  box-sizing: border-box;
+  width: min(100%, 88ch);
+  margin-inline: auto;
 }
 
 h1,
