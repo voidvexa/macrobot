@@ -64,8 +64,7 @@ function Tab({ id, digit, name, count, pressed, onClick }) {
       onClick={onClick}
     >
       {digits ? <kbd aria-hidden="true">{digits}</kbd> : null}
-      <span className="tab-name">{name}</span>
-      <span className="n">{count}</span>
+      <span className="tab-name">{name}</span> <span className="n">{count}</span>
     </button>
   );
 }

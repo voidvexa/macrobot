@@ -23,11 +23,11 @@ export function CategoryPanel({ cat, rows, open, onToggle, needle, sel, onSelect
         >
           <span className="glyph" aria-hidden="true">
             {open ? "−" : "+"}
-          </span>
+          </span>{" "}
           <span className="panel-name" id={nameId}>
             {cat.name}
           </span>
-          <span className="rule" aria-hidden="true" />
+          <span className="rule" aria-hidden="true" />{" "}
           <span className="meta">
             {stale > 0 ? <span className="flag">{stale}! </span> : null}
             {rows.length} · {cadenceLetters(rows)}

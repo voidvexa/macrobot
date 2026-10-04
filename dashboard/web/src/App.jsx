@@ -188,8 +188,7 @@ export default function App() {
     <div className="desk">
       <StatusLine job={job} stats={stats} tone={tone}>
         <h1 className="seg logo">
-          <b className="logo-mark">ALMA</b>
-          <small>MACRO DESK</small>
+          <b className="logo-mark">ALMA</b> <small>MACRO DESK</small>
         </h1>
       </StatusLine>
       <Toolbar
@@ -241,11 +240,9 @@ function SystemPanel({ job, stats, rows, rule }) {
       <div className="panel-head" id="system-head">
         <span className="glyph" aria-hidden="true">
           #
-        </span>
-        <h2>status</h2>
-        <span className="panel-name">· freshness</span>
-        <span className="rule" aria-hidden="true" />
-        <span className="meta">read-only</span>
+        </span>{" "}
+        <h2>status</h2> <span className="panel-name">· freshness</span>
+        <span className="rule" aria-hidden="true" /> <span className="meta">read-only</span>
       </div>
       <dl className="facts">
         <Fact name="last run" value={utcStamp(at)} extra={status ?? DASH} tone={status ? statusTone(status) : null} />

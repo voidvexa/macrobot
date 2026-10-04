@@ -14,9 +14,8 @@ export function StatusLine({ job, stats, tone, children }) {
         {fmtCount(stats?.observation_count)}
       </Segment>
       <span className="seg seg-db">
-        <span className="k">DB</span>
-        <span className="v">{fmtBytes(stats?.db_size_bytes)}</span>
-        {stats?.db_path ? <span className="path">{stats.db_path}</span> : null}
+        <span className="k">DB</span> <span className="v">{fmtBytes(stats?.db_size_bytes)}</span>
+        {stats?.db_path ? <span className="path"> {stats.db_path}</span> : null}
       </span>
       <Segment name="NEWEST">{stats?.newest_observation_date || DASH}</Segment>
       <span className="spacer" aria-hidden="true" />
@@ -25,11 +24,10 @@ export function StatusLine({ job, stats, tone, children }) {
   );
 }
 
-function Segment({ name, className = "", children }) {
+function Segment({ name, className, children }) {
   return (
-    <span className={`seg ${className}`}>
-      <span className="k">{name}</span>
-      <span className="v">{children}</span>
+    <span className={className ? `seg ${className}` : "seg"}>
+      <span className="k">{name}</span> <span className="v">{children}</span>
     </span>
   );
 }
@@ -44,10 +42,8 @@ function RunSegment({ job, tone }) {
       title={at == null ? undefined : utcStamp(at)}
     >
       <span className="dot" aria-hidden="true" />
-      <span className="run-label">RUN {tone.label}</span>
-      <span className="utc">{utcTime(at)}</span>
-      <span className="local">· {localTime(at)} local</span>
-      <span aria-live="off">· {ago(at, now)}</span>
+      <span className="run-label">RUN {tone.label}</span> <span className="utc">{utcTime(at)}</span>{" "}
+      <span className="local">· {localTime(at)} local</span> <span aria-live="off">· {ago(at, now)}</span>
     </span>
   );
 }
