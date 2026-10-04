@@ -19,7 +19,7 @@ updater/            cron job (python -m updater)
   sources/          fred.py, live.py, treasury.py
 dashboard/          read-only API (python -m dashboard)
   __main__.py       starts the API
-  server.py         GET /api/job, /api/stats, /api/snapshot
+  server.py         GET /api/job, /api/stats, /api/snapshot, /api/regime
   read.py           one SQL statement per route
   web/              React page
 ```
@@ -82,10 +82,11 @@ The page loads the snapshot, job status, and database stats once when it opens. 
 
 ## The database
 
-`data/macrobot.db` has three tables:
+`data/macrobot.db` has four tables:
 
 - **observations** — one row per series per date. A new date inserts a row. A same-day change updates that row.
 - **series_metadata** — label, unit, source, and a suggested threshold for “is this move notable?”
 - **meta** — `last_run_at` and `last_run_status` (`ok`, `partial`, or `failed`). That is how you tell a quiet market from a job that never ran.
+- **regime** — `datetime` and `regime`. The updater creates the empty table. A bot outside this repo inserts the text. `GET /api/regime` returns the row with the greatest `datetime`.
 
 The latest value for a series is the row with the greatest `date`. Overlapping runs are safe: each write is an upsert on `(series_key, date)`.

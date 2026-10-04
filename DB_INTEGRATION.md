@@ -2,7 +2,7 @@
 
 Macrobot is a stateless data-ingestion job: it fetches macroeconomic data points, writes them to a local SQLite database, and exits. It makes no outbound calls to any AI/agent API and sends no notifications itself.
 
-Any downstream agent (e.g. a bot running on the same VPS, such as an x.ai/Grok-based bot) is expected to read `data/macrobot.db` directly, on demand, to answer questions about the data or notice trends — Macrobot has no knowledge of, and no dependency on, whatever reads the database. There is no built-in alert/notification queue. The job writes `observations`, refreshes `series_metadata`, and stamps `meta`.
+Any downstream agent (e.g. a bot running on the same VPS, such as an x.ai/Grok-based bot) is expected to read `data/macrobot.db` directly, on demand, to answer questions about the data or notice trends — Macrobot has no knowledge of, and no dependency on, whatever reads the database. There is no built-in alert/notification queue. The job writes `observations`, refreshes `series_metadata`, and stamps `meta`. It also creates an empty `regime` table and leaves every insert to the bot.
 
 ---
 
@@ -56,6 +56,20 @@ Run markers, so a consumer can tell a quiet market from a dead job.
 - `value` (TEXT): For `last_run_at`, a UTC timestamp. For `last_run_status`, one of `ok` (all sources returned data), `partial` (some source returned nothing), `failed` (all sources failed, or the run raised).
 - `updated_at` (TEXT): UTC timestamp of the last write to this key
 
+### 4. `regime`
+One row per opinion written by a downstream bot (for example a Grok bot on a twice-a-day schedule). `python -m updater` creates the empty table in `init_db()` and never inserts a row. The dashboard reads the newest row and does not write one.
+- `datetime` (TEXT, PK): UTC timestamp, `YYYY-MM-DD HH:MM:SS` (the text `datetime('now')` produces). This format sorts chronologically, so the newest opinion is `MAX(datetime)`.
+- `regime` (TEXT): The regime text to print. Macrobot does not interpret it.
+
+Insert from the bot, with its own writable connection:
+
+```sql
+INSERT INTO regime (datetime, regime)
+VALUES (datetime('now'), 'disinflationary expansion');
+```
+
+A second insert with the same `datetime` fails. Use a new timestamp for the next run.
+
 ---
 
 ## Example Consumer Queries
@@ -104,6 +118,13 @@ SELECT series_key, value, date
 FROM observations
 WHERE series_key IN ('hy_spread', 'fed_net_liquidity', 'sofr_effr_spread', 'us10y')
 ORDER BY date DESC;
+```
+
+### Latest regime (what `GET /api/regime` runs):
+```sql
+SELECT datetime, regime
+FROM regime
+WHERE datetime = (SELECT MAX(datetime) FROM regime);
 ```
 
 ---

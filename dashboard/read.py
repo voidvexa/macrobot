@@ -12,6 +12,7 @@ CRON_CADENCE = timedelta(hours=2)
 DEFAULT_DB_PATH = "data/macrobot.db"
 
 # One statement per feature. Job reads meta. Stats counts. Snapshot is latest-by-date.
+# Regime is the newest bot opinion.
 JOB_SQL = "SELECT key, value FROM meta"
 
 STATS_SQL = """
@@ -46,6 +47,14 @@ LEFT JOIN (
       ON o1.series_key = latest.series_key AND o1.date = latest.max_date
 ) o ON m.key = o.series_key
 ORDER BY m.source, m.key
+"""
+
+# Latest regime is MAX(datetime), not the last inserted row. The column is
+# UTC text (`YYYY-MM-DD HH:MM:SS`), so the maximum is the newest opinion.
+REGIME_SQL = """
+SELECT datetime, regime
+FROM regime
+WHERE datetime = (SELECT MAX(datetime) FROM regime)
 """
 
 
@@ -87,6 +96,15 @@ class Snapshot:
     db_exists: bool
     error: str | None
     rows: tuple[SnapshotRow, ...]
+
+
+@dataclass(frozen=True)
+class Regime:
+    db_path: str
+    db_exists: bool
+    error: str | None
+    datetime: str | None
+    regime: str | None
 
 
 @dataclass(frozen=True)
@@ -204,6 +222,36 @@ def load_snapshot(db_path: Path) -> Snapshot:
         for row in read.rows
     )
     return Snapshot(db_path=path_text, db_exists=True, error=None, rows=rows)
+
+
+def load_regime(db_path: Path) -> Regime:
+    """Latest regime row by MAX(datetime): the UTC timestamp and the text."""
+    path_text = str(db_path)
+    read = _read_one(db_path, REGIME_SQL)
+    if read.rows is None:
+        return Regime(
+            db_path=path_text,
+            db_exists=read.db_exists,
+            error=read.error,
+            datetime=None,
+            regime=None,
+        )
+    if not read.rows:
+        return Regime(
+            db_path=path_text,
+            db_exists=True,
+            error=None,
+            datetime=None,
+            regime=None,
+        )
+    row = read.rows[0]
+    return Regime(
+        db_path=path_text,
+        db_exists=True,
+        error=None,
+        datetime=row["datetime"],
+        regime=row["regime"],
+    )
 
 
 def _read_one(db_path: Path, sql: str) -> _Read:

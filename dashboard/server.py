@@ -1,8 +1,8 @@
 """Localhost JSON for the React dashboard.
 
-Three data routes, one feature each: GET /api/job, GET /api/stats, and
-GET /api/snapshot. The page lives in dashboard/web and calls all three.
-SQLite stays here, opened read-only.
+Four data routes, one feature each: GET /api/job, GET /api/stats,
+GET /api/snapshot, and GET /api/regime. The page lives in dashboard/web
+and calls the first three. SQLite stays here, opened read-only.
 """
 
 from __future__ import annotations
@@ -15,7 +15,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-from dashboard.read import JobStatus, Snapshot, Stats, load_job, load_snapshot, load_stats, resolve_db_path
+from dashboard.read import (
+    JobStatus,
+    Regime,
+    Snapshot,
+    Stats,
+    load_job,
+    load_regime,
+    load_snapshot,
+    load_stats,
+    resolve_db_path,
+)
 
 DEFAULT_PORT = 8765
 HOST = "127.0.0.1"
@@ -47,6 +57,13 @@ SNAPSHOT_RESPONSE_FIELDS = (
     "error",
     "snapshot",
 )
+REGIME_FIELDS = (
+    "db_path",
+    "db_exists",
+    "error",
+    "datetime",
+    "regime",
+)
 
 
 def make_server(port: int, db_path: Path) -> ThreadingHTTPServer:
@@ -69,6 +86,10 @@ def make_server(port: int, db_path: Path) -> ThreadingHTTPServer:
                 return
             if route == "/api/snapshot":
                 body = json.dumps(snapshot_payload(load_snapshot(db_path))).encode("utf-8")
+                self._send(200, body, "application/json; charset=utf-8")
+                return
+            if route == "/api/regime":
+                body = json.dumps(regime_payload(load_regime(db_path))).encode("utf-8")
                 self._send(200, body, "application/json; charset=utf-8")
                 return
             if route in ("/", "/index.html"):
@@ -116,6 +137,16 @@ def stats_payload(stats: Stats) -> dict:
     }
 
 
+def regime_payload(regime: Regime) -> dict:
+    return {
+        "db_path": regime.db_path,
+        "db_exists": regime.db_exists,
+        "error": regime.error,
+        "datetime": regime.datetime,
+        "regime": regime.regime,
+    }
+
+
 def snapshot_payload(snapshot: Snapshot) -> dict:
     return {
         "db_path": snapshot.db_path,
@@ -155,6 +186,7 @@ def main(argv: list[str] | None = None) -> None:
     print(f"{base}/api/job", flush=True)
     print(f"{base}/api/stats", flush=True)
     print(f"{base}/api/snapshot", flush=True)
+    print(f"{base}/api/regime", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
