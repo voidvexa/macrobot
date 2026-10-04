@@ -13,7 +13,7 @@ function RowDetail({ row }) {
   const state = row.noData ? "NO DATA" : row.stale ? "STALE" : "FRESH";
   return (
     <>
-      <b className="i-label">{row.label}</b> <span className="i-dim">{row.key}</span>{" "}
+      <b className="i-label">{row.label}</b> <span className="i-dim i-key">{row.key}</span>{" "}
       <span>
         <span className="i-dim">raw</span> <b className="i-v">{rawText(row.value)}</b>
         {row.unit ? <span className="i-dim"> {row.unit}</span> : null}
@@ -38,11 +38,11 @@ function Hint({ total, stale, rule, groups }) {
         <span className="on-touch">tap a row to inspect</span>
       </span>{" "}
       {total == null ? null : (
-        <span>
+        <span className="i-fit">
           {total} series · {stale} stale ({RULE_TEXT[rule]})
         </span>
       )}{" "}
-      <span className="i-dim i-end i-hints">
+      <span className="i-dim i-end i-hints i-fit">
         / filter · 0-{groups} group · j/k move · s stale rule · o sort · esc clear
       </span>
     </>

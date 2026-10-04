@@ -625,15 +625,29 @@ mark {
   font-size: 11.5px;
 }
 
+.inspector > * {
+  flex: none;
+}
+
+/* Only the key, the label and the hint text give way, so FRESH/STALE stays
+   on screen. The key's weight makes it collapse before the label shrinks. */
+.inspector > .i-label,
+.inspector > .i-key,
+.inspector > .i-fit {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inspector > .i-key {
+  flex-shrink: 100000;
+}
+
 .i-label,
 .i-v {
   color: var(--fg);
   font-weight: 500;
-}
-
-.i-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .i-dim {
