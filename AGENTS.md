@@ -86,7 +86,8 @@ alerting should compute "did this change enough to matter" itself from
   `account_type:eq:Treasury General Account (TGA) Closing Balance` or the
   wrong figure gets picked up. `close_today_bal` is always the string
   `"null"` in this dataset — the actual closing-balance figure is in
-  `open_today_bal`.
+  `open_today_bal`. That figure is millions of dollars and is stored in
+  billions (`/ 1000`), the same unit as `walcl` and `rrp`.
 - `updater/sources/fred.py`: credit spread series (`hy_spread`, `ig_spread`,
   `ccc_spread`) come back from FRED in percent and are converted to bps
   (`* 100`). `walcl`, `tga_weekly`, `rsafs`, and `wresbal` come back in
@@ -214,9 +215,9 @@ neither writes `macrobot.db`. Ingestion stays `python -m updater`.
 The API is the Python reader. It opens `data/macrobot.db` (or `SQLITE_DB_PATH`
 from the environment / `.env`, the same default as `updater/config.py`) with `mode=ro`
 and `PRAGMA query_only`. It imports nothing from `updater`, and it
-does not load the ingestion stack (`dashboard/requirements.txt` is empty; the
-standard library is enough). SQLite stays in that process. The React app only
-calls the API.
+does not load the ingestion stack (`dashboard/requirements.txt` lists no
+packages; the standard library is enough). SQLite stays in that process. The
+React app only calls the API.
 
 Each feature is its own route, its own service function, and its own SQL
 statement:
@@ -248,9 +249,10 @@ proxies `/api` to that port. If you change the API port, set `DASHBOARD_PORT`
 (or pass `--port`) before starting both. There is no auth, so leave both on
 localhost. `--db` overrides the file for a one-off.
 
-The React page calls all three when it opens. There is no timer. The snapshot
-stays above the status block. The page is a light monospace readout: plain
-labels, fixed-width figures, simple borders. No charts and no AI summary.
+The React page is titled ALMA (a lightweight macroeconomic analyst). It calls
+all three routes when it opens. There is no timer. The snapshot stays above
+the status block. The page is a light monospace readout: plain labels,
+fixed-width figures, simple borders. No charts and no AI summary.
 
 Checks, with a temporary database and no network:
 
