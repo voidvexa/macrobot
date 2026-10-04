@@ -216,7 +216,6 @@ export default function App() {
           {activeCat === "all" && needle === "" ? (
             <SystemPanel job={job} stats={stats} rows={rows} rule={rule} />
           ) : null}
-          <p className="credit">powered by ©voidvexa</p>
         </div>
       </main>
       <Inspector
@@ -225,7 +224,9 @@ export default function App() {
         stale={countStale(rows)}
         rule={rule}
         groups={tabs.length || CATEGORIES.length}
-      />
+      >
+        <p className="credit">powered by ©voidvexa</p>
+      </Inspector>
     </div>
   );
 }

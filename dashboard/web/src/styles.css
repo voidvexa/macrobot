@@ -220,6 +220,7 @@ kbd {
   top: 30px;
   z-index: 19;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
@@ -266,14 +267,12 @@ kbd {
 
 .tabs {
   display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
   gap: 4px;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.tabs::-webkit-scrollbar {
-  display: none;
+  /* Stay wide enough for whole pills, then wrap onto the next toolbar line. */
+  min-width: min(100%, max-content);
+  overflow: visible;
 }
 
 .tab {
@@ -589,11 +588,12 @@ mark {
 }
 
 .credit {
-  column-span: all;
-  margin: 4px 0 0;
+  margin: 0 0 0 auto;
   color: var(--dim);
   font-size: 10.5px;
+  line-height: 1.5;
   text-align: right;
+  white-space: nowrap;
 }
 
 .empty {
@@ -613,34 +613,51 @@ mark {
   left: 0;
   z-index: 20;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
-  height: 28px;
-  padding: 0 12px;
-  overflow: hidden;
-  white-space: nowrap;
+  gap: 2px 14px;
+  min-height: 28px;
+  padding: 4px 12px;
+  overflow: visible;
   background: var(--chrome);
   border-top: 1px solid var(--line);
   color: var(--fg-2);
   font-size: 11.5px;
 }
 
-.inspector > * {
-  flex: none;
+.inspector > .i-readout {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 14px;
+  min-width: 0;
+  max-width: 100%;
 }
 
-/* Only the key, the label and the hint text give way, so FRESH/STALE stays
-   on screen. The key's weight makes it collapse before the label shrinks. */
-.inspector > .i-label,
-.inspector > .i-key,
-.inspector > .i-fit {
+.i-readout > * {
+  flex: none;
+  max-width: 100%;
+}
+
+/* The key yields before the label, so FRESH/STALE stays on screen. */
+.i-readout > .i-label,
+.i-readout > .i-key {
   flex-shrink: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.inspector > .i-key {
+/* Hint copy wraps on word boundaries instead of being sliced mid-word. */
+.i-readout > .i-fit {
+  flex: 1 1 auto;
+  min-width: min(100%, 14ch);
+  white-space: normal;
+}
+
+.i-readout > .i-key {
   flex-shrink: 100000;
 }
 
@@ -706,14 +723,18 @@ mark {
     top: auto;
     flex-wrap: wrap;
     height: auto;
+    max-width: 100%;
     overflow: visible;
+    white-space: normal;
     border-bottom: 0;
   }
 
   .seg {
-    flex: 1 0 auto;
+    flex: 0 0 auto;
+    max-width: 100%;
     height: 28px;
     padding: 0 9px;
+    white-space: nowrap;
     border-bottom: 1px solid var(--line);
   }
 
@@ -721,12 +742,15 @@ mark {
     flex: none;
   }
 
-  .seg-obs,
-  .seg-db,
   .seg-run .local,
   .spacer,
   .seg-clock {
     display: none;
+  }
+
+  /* The narrower breakpoint hides the whole DB segment. Bring it back. */
+  .seg-db {
+    display: flex;
   }
 
   .toolbar {
@@ -741,8 +765,13 @@ mark {
 
   .tabs {
     flex: 1 0 100%;
-    margin: 0 -8px;
-    padding: 0 8px;
+    overflow: visible;
+  }
+
+  .credit {
+    flex-basis: 100%;
+    margin-left: 0;
+    text-align: right;
   }
 
   .opts {
@@ -751,7 +780,7 @@ mark {
   }
 
   .page {
-    padding: 8px 8px 44px;
+    padding: 8px 8px 96px;
   }
 
   .grid {
@@ -762,7 +791,7 @@ mark {
     grid-template-columns: 9px minmax(0, 1fr) auto 3.4ch 8.5ch;
     min-height: 28px;
     padding: 4px 10px;
-    scroll-margin: 8px 0 36px;
+    scroll-margin: 8px 0 96px;
   }
 
   .row .age,

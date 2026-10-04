@@ -1,10 +1,13 @@
 import { DASH, rawText } from "../lib/format.js";
 import { RULE_TEXT } from "./Toolbar.jsx";
 
-export function Inspector({ row, total, stale, rule, groups }) {
+export function Inspector({ row, total, stale, rule, groups, children }) {
   return (
-    <div className="inspector" aria-live="polite">
-      {row ? <RowDetail row={row} /> : <Hint total={total} stale={stale} rule={rule} groups={groups} />}
+    <div className="inspector">
+      <div className="i-readout" aria-live="polite">
+        {row ? <RowDetail row={row} /> : <Hint total={total} stale={stale} rule={rule} groups={groups} />}
+      </div>
+      {children}
     </div>
   );
 }
