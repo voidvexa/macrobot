@@ -17,7 +17,6 @@ export default function App() {
         const payload = await response.json();
         if (!cancelled) {
           setData(payload);
-          setError(null);
           setNow(Date.now());
         }
       } catch (err) {
@@ -218,6 +217,5 @@ function formatValue(value) {
   if (value == null) {
     return "—";
   }
-  const text = Number(value).toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
-  return text || "0";
+  return Number(value).toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
 }
