@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 
-const REFRESH_MS = 60_000;
-
 export default function App() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -30,10 +28,8 @@ export default function App() {
     }
 
     load();
-    const timer = setInterval(load, REFRESH_MS);
     return () => {
       cancelled = true;
-      clearInterval(timer);
     };
   }, []);
 
@@ -59,19 +55,6 @@ export default function App() {
           could not read the database ({data.db_path}): {data.error}
         </p>
       ) : null}
-      <h2>status</h2>
-      <table className="readout">
-        <tbody>
-          <Row label="indicators" value={indicatorText(data)} />
-          <Row label="observations" value={data ? formatCount(data.observation_count) : "—"} />
-          <Row label="last_run" value={data ? runText(data, now) : "—"} />
-          <Row label="freshness" value={freshText(data)} />
-          <Row label="ingestion" value={data ? (data.ingestion_running ? "running" : "idle") : "—"} />
-          <Row label="database" value={data ? formatBytes(data.db_size_bytes) : "—"} />
-          <Row label="path" value={data?.db_path ?? "—"} path />
-          <Row label="newest" value={data?.newest_observation_date || "—"} />
-        </tbody>
-      </table>
       <h2>latest snapshot</h2>
       <table>
         <thead>
@@ -87,8 +70,21 @@ export default function App() {
           {snapshotRows(data)}
         </tbody>
       </table>
+      <h2>status</h2>
+      <table className="readout">
+        <tbody>
+          <Row label="indicators" value={indicatorText(data)} />
+          <Row label="observations" value={data ? formatCount(data.observation_count) : "—"} />
+          <Row label="last_run" value={data ? runText(data, now) : "—"} />
+          <Row label="freshness" value={freshText(data)} />
+          <Row label="ingestion" value={data ? (data.ingestion_running ? "running" : "idle") : "—"} />
+          <Row label="database" value={data ? formatBytes(data.db_size_bytes) : "—"} />
+          <Row label="path" value={data?.db_path ?? "—"} path />
+          <Row label="newest" value={data?.newest_observation_date || "—"} />
+        </tbody>
+      </table>
       <footer>
-        localhost only. this page does not write the database. refresh every 60s. stale when
+        localhost only. this page does not write the database. stale when
         last_run_at is older than 2 hours. ingestion is idle between cron runs.
       </footer>
     </main>
