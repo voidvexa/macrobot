@@ -46,7 +46,7 @@ export default function App() {
           <span>ANALYST</span>
         </p>
       </header>
-      <p>read-only. cron still writes.</p>
+      <p>powered by <a href="https://github.com/voidvexa/macrobot" target="_blank" rel="noopener noreferrer">macrobot</a></p>
       {error ? <p className="notice">api: {error}</p> : null}
       {readNotice(job, stats, snapshot)}
       <h2>latest snapshot</h2>
@@ -77,7 +77,7 @@ export default function App() {
           <Row label="newest" value={stats?.newest_observation_date || "—"} />
         </tbody>
       </table>
-      <p className="credit">powered by ©voidvexa</p>
+      <p className="credit">powered by ©<a href="https://github.com/voidvexa" target="_blank" rel="noopener noreferrer">voidvexa</a></p>
     </main>
   );
 }

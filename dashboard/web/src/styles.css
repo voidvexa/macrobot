@@ -137,6 +137,12 @@ td.path {
   font-size: 0.75rem;
 }
 
+a:any-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
 /* Below the status line's one-line width, wrap instead of scrolling sideways. */
 @media (max-width: 42rem) {
   th,
