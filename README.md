@@ -1,12 +1,28 @@
 # Macrobot
 
-Two programs share `data/macrobot.db`.
+Two programs share `data/macrobot.db`. Each one lives in its own package.
 
-`updater` fetches a fixed set of U.S. macro and market indicators, writes them to that file, and exits. Run it every two hours. Between those runs the updater process is gone.
+`updater` fetches a fixed set of U.S. macro and market indicators, writes them to that file, and exits. Run it every two hours with `python -m updater`. Between those runs the updater process is gone.
 
-`dashboard` reads the same file and serves a localhost page. It does not fetch data and it does not write the database. The commands are in [AGENTS.md](AGENTS.md).
+`dashboard` reads that file and serves a localhost JSON API. The page is the React app in `dashboard/web`, titled ALMA. Ingestion stays with the cron job.
 
-Alerts live outside this repo. A reader opens `data/macrobot.db` and decides what is worth flagging. The schema and example queries are in [DB_INTEGRATION.md](DB_INTEGRATION.md).
+Alerts live outside this repo. A reader opens `data/macrobot.db` and decides what is worth flagging. The schema and example queries are in [DB_INTEGRATION.md](DB_INTEGRATION.md). Fetcher notes and the run contract are in [AGENTS.md](AGENTS.md).
+
+## Layout
+
+```
+updater/            cron job (python -m updater)
+  __main__.py       one pass: init the database, fetch, exit
+  check.py          sources, derived series, run status
+  config.py         FRED_API_KEY, SQLITE_DB_PATH, LOG_LEVEL from .env
+  store.py          schema, series list, writes
+  sources/          fred.py, live.py, treasury.py
+dashboard/          read-only API (python -m dashboard)
+  __main__.py       starts the API
+  server.py         GET /api/job, /api/stats, /api/snapshot
+  read.py           one SQL statement per route
+  web/              React page
+```
 
 ## What it tracks
 
@@ -46,6 +62,23 @@ Every two hours, with cron output discarded (the app already rotates its own log
 ```
 0 */2 * * * cd /path/to/macrobot && .venv/bin/python -m updater >/dev/null 2>&1
 ```
+
+## Dashboard
+
+From the repo root, in two terminals:
+
+```bash
+python -m dashboard
+```
+
+```bash
+npm --prefix dashboard/web install
+npm --prefix dashboard/web run dev
+```
+
+The API binds `127.0.0.1:8765`. The page binds `127.0.0.1:5173` and proxies `/api` to that port. There is no auth, so leave both on localhost. If the API port changes, set `DASHBOARD_PORT` (or pass `--port`) before starting both. `--db` points that process at another SQLite file.
+
+The page loads the snapshot, job status, and database stats once when it opens. The snapshot stays above the status block.
 
 ## The database
 

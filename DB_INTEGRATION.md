@@ -2,13 +2,14 @@
 
 Macrobot is a stateless data-ingestion job: it fetches macroeconomic data points, writes them to a local SQLite database, and exits. It makes no outbound calls to any AI/agent API and sends no notifications itself.
 
-Any downstream agent (e.g. a bot running on the same VPS, such as an x.ai/Grok-based bot) is expected to read `data/macrobot.db` directly, on demand, to answer questions about the data or notice trends — Macrobot has no knowledge of, and no dependency on, whatever reads the database. There is no built-in alert/notification queue; Macrobot only ever writes `observations`.
+Any downstream agent (e.g. a bot running on the same VPS, such as an x.ai/Grok-based bot) is expected to read `data/macrobot.db` directly, on demand, to answer questions about the data or notice trends — Macrobot has no knowledge of, and no dependency on, whatever reads the database. There is no built-in alert/notification queue. The job writes `observations`, refreshes `series_metadata`, and stamps `meta`.
 
 ---
 
 ## Architecture Overview
 
 1. **Macrobot Ingestion (a cron job every two hours)**:
+   - Runs as `python -m updater`.
    - Fetches FRED, Treasury, and Yahoo Finance data points.
    - Writes to `observations` one row per series per calendar/release date: a new date gets a new row; if the date hasn't changed since the last recorded row (e.g. an intraday VIX quote shifting within the same trading day), that row's value is updated in place instead of inserting a duplicate.
    - Exits immediately after each run (no persistent process).
@@ -17,6 +18,8 @@ Any downstream agent (e.g. a bot running on the same VPS, such as an x.ai/Grok-b
    - Queries `observations` and `series_metadata` directly — for a current snapshot, a historical trend, or to notice that a series moved meaningfully (there's nothing pre-computed to poll; the consumer decides what's "notable" itself, e.g. using `series_metadata.threshold` as a guideline).
    - Should check `meta` first when freshness matters — a quiet market and a dead ingestion job look identical in `observations` alone.
    - Sends whatever it wants via whatever channel it owns (Discord, Telegram, X/Grok, etc.) — entirely outside Macrobot's scope.
+
+This repo also ships a localhost page for the same file: `python -m dashboard`, with the React app in `dashboard/web`. That page reads the database. Alerting stays with the downstream agent.
 
 The database is opened in WAL mode, so reading it concurrently with Macrobot's write is safe — no need to schedule around the job.
 
