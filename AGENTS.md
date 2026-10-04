@@ -214,9 +214,9 @@ neither writes `macrobot.db`. Ingestion stays `python -m updater`.
 The API is the Python reader. It opens `data/macrobot.db` (or `SQLITE_DB_PATH`
 from the environment / `.env`, the same default as `updater/config.py`) with `mode=ro`
 and `PRAGMA query_only`. It imports nothing from `updater`, and it
-does not load the ingestion stack (`dashboard/requirements.txt` is empty; the
-standard library is enough). SQLite stays in that process. The React app only
-calls the API.
+does not load the ingestion stack (`dashboard/requirements.txt` lists no
+packages; the standard library is enough). SQLite stays in that process. The
+React app only calls the API.
 
 Each feature is its own route, its own service function, and its own SQL
 statement:
