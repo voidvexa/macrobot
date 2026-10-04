@@ -7,3 +7,4 @@ ts	phase	decision	why	evidence	result
 2026-10-04T09:31:53Z	parser	Dashboard dotenv lookup now matches pydantic-settings on case and inline comments	A lowercase sqlite_db_path and a trailing hash comment made the page open a different file than the job.	dashboard/read.py _dotenv_value	dashboard tests ok
 2026-10-04T09:31:53Z	defer	Left updater.store.get_db_connection opening every call read-write	Splitting read and write connections is a new type inside the writer. The page already refuses the import.	updater/store.py get_db_connection	open
 2026-10-04T09:32:10Z	frame	The bakeoff skip stands. The earlier evidence path is not in this repo.	That row pointed at a local skill file a reviewer cannot open from the pull request.	decisions.tsv	supersedes the skipped bakeoff row
+2026-10-04T09:32:27Z	move	The package split is commit 38a4d46	That commit is the move the earlier row described.	commit 38a4d46	landed
