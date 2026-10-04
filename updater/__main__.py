@@ -4,11 +4,11 @@ from pathlib import Path
 
 from loguru import logger
 
-from checker import run_check
-from config import settings
-from db import init_db, record_run
+from updater.check import run_check
+from updater.config import settings
+from updater.store import init_db, record_run
 
-LOG_DIR = Path(__file__).resolve().parent / "logs"
+LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 logger.remove()
@@ -40,8 +40,6 @@ if __name__ == "__main__":
         init_db()
         run_check()
     except Exception:
-        # Exit non-zero so systemd marks the unit failed instead of the run
-        # disappearing silently into the journal.
         logger.exception("Macrobot run failed")
         try:
             record_run("failed")

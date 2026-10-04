@@ -2,7 +2,7 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Generator, Optional
-from config import settings
+from updater.config import settings
 
 # `threshold` is not enforced by this app (there's no alerting logic here
 # anymore) — it's descriptive metadata for a downstream consumer deciding

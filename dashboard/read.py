@@ -1,10 +1,3 @@
-"""Read macrobot.db the way DB_INTEGRATION.md describes, and nothing else.
-
-The connection is `mode=ro`. Do not import `checker`, `macro`, or `db`:
-`db.get_db_connection` opens the file writable and turns on WAL, which is a
-write. The cron job already enables WAL, so a reader can run while it writes.
-"""
-
 from __future__ import annotations
 
 import os
@@ -104,11 +97,6 @@ class _Read:
 
 
 def resolve_db_path(explicit: str | None = None) -> Path:
-    """Same path the job uses: env, then `.env`, then `data/macrobot.db`.
-
-    `config.py` loads `SQLITE_DB_PATH` that way. Relative paths stay relative
-    to the current working directory, so start this process from the repo root.
-    """
     raw = (explicit or "").strip()
     if not raw:
         raw = os.environ.get("SQLITE_DB_PATH", "").strip()
@@ -135,10 +123,6 @@ def connect(db_path: Path) -> sqlite3.Connection:
 
 
 def load_job(db_path: Path, now: datetime | None = None) -> JobStatus:
-    """Last run, its status, staleness, and whether `python main.py` is running.
-
-    One query of `meta`. The process check reads `/proc`, not SQLite.
-    """
     running = ingestion_running()
     path_text = str(db_path)
     read = _read_one(db_path, JOB_SQL)
@@ -260,11 +244,6 @@ def parse_run_timestamp(value: str | None) -> datetime | None:
 
 
 def ingestion_running() -> bool:
-    """True while `python main.py` is in the process list on this host.
-
-    Between cron runs the job has exited, so the honest status is idle.
-    `python -m dashboard` is not a match.
-    """
     own = os.getpid()
     for pid, args in _process_argvs():
         if pid == own:
@@ -275,16 +254,14 @@ def ingestion_running() -> bool:
 
 
 def is_ingestion_argv(args: list[str]) -> bool:
-    """Whether this argv is the ingestion job (`python main.py`).
-
-    Module and `-c` invocations are excluded so the dashboard process, and
-    anything that merely mentions `main.py` inside Python code, does not count.
-    """
     if not args or not _is_python(args[0]):
         return False
-    if "-m" in args or "-c" in args:
+    if "-c" in args or "-m" not in args:
         return False
-    return any(Path(arg).name == "main.py" for arg in args[1:] if not arg.startswith("-"))
+    module_at = args.index("-m") + 1
+    if module_at >= len(args):
+        return False
+    return args[module_at] == "updater"
 
 
 def _is_python(argv0: str) -> bool:
@@ -323,10 +300,15 @@ def _dotenv_value(path: Path, key: str) -> str:
         if "=" not in stripped:
             continue
         name, value = stripped.split("=", 1)
-        if name.strip() != key:
+        if name.strip().lower() != key.lower():
             continue
         value = value.strip()
         if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
             value = value[1:-1]
+        else:
+            for mark in (" #", "\t#"):
+                if mark in value:
+                    value = value.split(mark, 1)[0]
+                    break
         found = value.strip()
     return found

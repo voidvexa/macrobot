@@ -1,6 +1,6 @@
 import requests
 from loguru import logger
-from config import settings
+from updater.config import settings
 
 FRED_BASE = "https://api.stlouisfed.org/fred/series/observations"
 HTTP_TIMEOUT = 15
@@ -46,10 +46,6 @@ SERIES = {
 }
 
 BPS_SERIES = {"hy_spread", "ig_spread", "ccc_spread"}
-# tga isn't fetched here — it comes from macro/treasury.py, which is more
-# authoritative (filters to the TGA closing-balance row specifically) and is
-# what fed_net_liquidity uses. tga_weekly (WDTGAL) is FRED's weekly Wednesday
-# level, stored as its own series alongside it.
 # wresbal is the H.4.1 reserve-balance week average, same millions-of-dollars
 # unit as walcl.
 MILLIONS_TO_BILLIONS_SERIES = {"walcl", "tga_weekly", "rsafs", "wresbal"}
