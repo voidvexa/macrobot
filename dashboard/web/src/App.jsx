@@ -2,6 +2,7 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } fro
 import { CategoryPanel } from "./components/CategoryPanel.jsx";
 import { DeskGrid } from "./components/DeskGrid.jsx";
 import { Inspector } from "./components/Inspector.jsx";
+import { RegimeBrief } from "./components/RegimeBrief.jsx";
 import { StatusLine } from "./components/StatusLine.jsx";
 import { Toolbar } from "./components/Toolbar.jsx";
 import {
@@ -29,11 +30,16 @@ const START = {
 };
 
 // StrictMode mounts effects twice in development; sharing one promise keeps
-// the page at exactly three API requests per load.
+// each route to a single request per load.
 let pageLoad = null;
 
 function loadPage() {
-  pageLoad ??= Promise.all([getJson("/api/job"), getJson("/api/stats"), getJson("/api/snapshot")]);
+  pageLoad ??= Promise.all([
+    getJson("/api/job"),
+    getJson("/api/stats"),
+    getJson("/api/snapshot"),
+    getJson("/api/regime-brief"),
+  ]);
   return pageLoad;
 }
 
@@ -41,6 +47,9 @@ export default function App() {
   const [job, setJob] = useState(null);
   const [stats, setStats] = useState(null);
   const [snapshot, setSnapshot] = useState(null);
+  const [brief, setBrief] = useState(null);
+  const [briefOpen, setBriefOpen] = useState(true);
+  const [mark, setMark] = useState(null);
   const [error, setError] = useState(null);
   const [cat, setCat] = useState(START.cat);
   const [query, setQuery] = useState(START.query);
@@ -55,11 +64,12 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     loadPage().then(
-      ([jobPayload, statsPayload, snapshotPayload]) => {
+      ([jobPayload, statsPayload, snapshotPayload, briefPayload]) => {
         if (!cancelled) {
           setJob(jobPayload);
           setStats(statsPayload);
           setSnapshot(snapshotPayload);
+          setBrief(briefPayload);
         }
       },
       (err) => {
@@ -153,6 +163,9 @@ export default function App() {
       toggleRule();
     } else if (event.key === "o") {
       cycleSort();
+    } else if (event.key === "b") {
+      event.preventDefault();
+      setBriefOpen((current) => !current);
     }
   });
 
@@ -197,6 +210,7 @@ export default function App() {
             {tone.banner}
           </p>
         ) : null}
+        <RegimeBrief brief={brief} open={briefOpen} onToggle={() => setBriefOpen((current) => !current)} onMark={setMark} />
         <DeskGrid
           panels={note ? [] : panels}
           renderPanel={(panel, slot) => (
@@ -210,6 +224,7 @@ export default function App() {
               sel={sel}
               onSelect={select}
               onHover={setHover}
+              marked={mark}
               slot={slot}
             />
           )}
