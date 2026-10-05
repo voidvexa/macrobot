@@ -1083,11 +1083,11 @@ mark {
 
 .pip-tick {
   position: absolute;
-  top: -4px;
+  top: -5px;
   left: 3px;
   width: 1px;
-  height: 3px;
-  background: var(--fg-2);
+  height: 4px;
+  background: var(--fg);
 }
 
 .trend-pip {
@@ -1274,30 +1274,13 @@ mark {
     width: 100%;
   }
 
-  .checks,
-  .checks tbody,
-  .checks tr,
+  .checks th,
   .checks td {
-    display: block;
     white-space: normal;
   }
 
-  .checks thead {
-    display: none;
-  }
-
-  .checks tr {
-    padding: 4px 0;
-    border-bottom: 1px solid var(--line);
-  }
-
-  .checks td {
-    padding: 0;
-    border-bottom: 0;
-  }
-
   .checks td.detail {
-    color: var(--dim);
+    min-width: 16ch;
   }
 }
 
