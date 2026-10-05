@@ -1,8 +1,9 @@
 """Localhost JSON for the React dashboard.
 
-Four data routes, one feature each: GET /api/job, GET /api/stats,
-GET /api/snapshot, and GET /api/regime. The page lives in dashboard/web
-and calls the first three. SQLite stays here, opened read-only.
+Data routes, one feature each: GET /api/job, GET /api/stats,
+GET /api/snapshot, GET /api/regime, and GET /api/regime-brief. The page
+lives in dashboard/web and calls job, stats, snapshot, and the regime
+brief. SQLite stays here, opened read-only.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ from dashboard.read import (
     load_stats,
     resolve_db_path,
 )
+from dashboard.regime_brief import brief_payload, load_regime_brief
 
 DEFAULT_PORT = 8765
 HOST = "127.0.0.1"
@@ -90,6 +92,10 @@ def make_server(port: int, db_path: Path) -> ThreadingHTTPServer:
                 return
             if route == "/api/regime":
                 body = json.dumps(regime_payload(load_regime(db_path))).encode("utf-8")
+                self._send(200, body, "application/json; charset=utf-8")
+                return
+            if route == "/api/regime-brief":
+                body = json.dumps(brief_payload(load_regime_brief(db_path))).encode("utf-8")
                 self._send(200, body, "application/json; charset=utf-8")
                 return
             if route in ("/", "/index.html"):
@@ -187,6 +193,7 @@ def main(argv: list[str] | None = None) -> None:
     print(f"{base}/api/stats", flush=True)
     print(f"{base}/api/snapshot", flush=True)
     print(f"{base}/api/regime", flush=True)
+    print(f"{base}/api/regime-brief", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -1,7 +1,7 @@
 import { cadenceLetters, countStale } from "../lib/rows.js";
 import { SeriesRow } from "./SeriesRow.jsx";
 
-export function CategoryPanel({ cat, rows, open, onToggle, needle, sel, onSelect, onHover, slot }) {
+export function CategoryPanel({ cat, rows, open, onToggle, needle, sel, onSelect, onHover, marked, slot }) {
   const stale = countStale(rows);
   const listId = `rows-${cat.id}`;
   const nameId = `panel-${cat.id}`;
@@ -45,6 +45,7 @@ export function CategoryPanel({ cat, rows, open, onToggle, needle, sel, onSelect
             row={row}
             needle={needle}
             selected={row.key === sel}
+            marked={row.key === marked}
             tabStop={row.key === tabStop}
             onSelect={onSelect}
             onHover={onHover}

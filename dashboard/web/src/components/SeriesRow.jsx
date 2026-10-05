@@ -2,7 +2,7 @@ import { memo } from "react";
 import { DASH, fmtValue, period, rawText } from "../lib/format.js";
 import { freshnessBand, freshnessLabel, splitMatch } from "../lib/rows.js";
 
-export const SeriesRow = memo(function SeriesRow({ row, needle, selected, tabStop, onSelect, onHover }) {
+export const SeriesRow = memo(function SeriesRow({ row, needle, selected, marked, tabStop, onSelect, onHover }) {
   const value = row.noData ? DASH : fmtValue(row.value, row.unit);
   const when = row.noData ? DASH : period(row.date, row.cadence);
   const age = row.age == null ? DASH : `${row.age}d`;
@@ -10,7 +10,7 @@ export const SeriesRow = memo(function SeriesRow({ row, needle, selected, tabSto
   const unit = row.unit ? ` ${row.unit}` : "";
   const band = freshnessBand(row);
   const freshText = freshnessLabel(row);
-  const className = ["row", row.stale && "is-stale", selected && "is-sel"].filter(Boolean).join(" ");
+  const className = ["row", row.stale && "is-stale", selected && "is-sel", marked && "is-marked"].filter(Boolean).join(" ");
 
   return (
     <li
