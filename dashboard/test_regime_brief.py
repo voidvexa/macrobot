@@ -15,6 +15,14 @@ from dashboard.regime_brief import (
     RELEASE_RULE,
     UNMAPPED,
     VERSION,
+    _apply_hysteresis,
+    _cfnai,
+    _claims,
+    _inflation,
+    _payrolls,
+    _real_pce,
+    _trend,
+    _unemployment,
     brief_payload,
     load_regime_brief,
 )
@@ -55,7 +63,7 @@ def _level(day: date, base: float, amplitude: float, spike: float, spiked: bool)
     return value
 
 
-def _seed(path: Path, spike: bool, stale_tga: bool = False) -> None:
+def _seed(path: Path, spike: bool, stale_tga: bool = False, lag_monthly: bool = False) -> None:
     conn = sqlite3.connect(path)
     try:
         conn.executescript(SCHEMA)
@@ -75,7 +83,7 @@ def _seed(path: Path, spike: bool, stale_tga: bool = False) -> None:
                 rows.append(("icsa", day, 218000.0 if day >= date(2026, 9, 5) else 224000.0, stamp))
                 rows.append(("nfci", day, -0.32, stamp))
                 rows.append(("stlfsi4", day, 0.41 if spike and day >= SPIKE else -0.41, stamp))
-            if day.day == 1:
+            if day.day == 1 and not (lag_monthly and day >= date(2026, 10, 1)):
                 month = _months(day)
                 rows.append(("payems", day, 150000.0 + month * 30.0, stamp))
                 rows.append(("unrate", day, 4.2, stamp))
@@ -145,6 +153,9 @@ class RegimeBriefTests(TestCase):
         self.assertIsNone(liquidity["toward"])
         self.assertEqual(liquidity["stress"]["score"], 0)
         self.assertEqual(liquidity["trend"]["direction"], "FLAT")
+        self.assertEqual(liquidity["trend"]["text"], "28d avg \u22120.20%")
+        self.assertEqual(f"{liquidity['trend']['change_28d']:.2f}", "-0.20")
+        self.assertNotIn("$", liquidity["trend"]["text"])
         self.assertEqual(
             liquidity["why"],
             "Stress is 0/5 and the phase stays Calm.",
@@ -153,6 +164,8 @@ class RegimeBriefTests(TestCase):
         for key in ("s1", "s2", "s3", "s4", "s5"):
             self.assertEqual(stress[key]["result"], "FAIL", key)
         self.assertEqual(stress["t1"]["result"], "FLAT")
+        self.assertEqual(stress["t1"]["value"], "28d avg \u22120.20%")
+        self.assertNotIn("$", stress["t1"]["value"])
         self.assertEqual(stress["spec"]["result"], "OFF")
         self.assertEqual(payload["context"]["speculation_gate"]["state"], "off")
         self.assertEqual(payload["context"]["speculation_gate"]["rule"], "HY 2w z < \u22121.5")
@@ -216,3 +229,130 @@ class RegimeBriefTests(TestCase):
         self.assertFalse(payload["db_exists"])
         self.assertIsNone(payload["economy"])
         self.assertIsNone(payload["error"])
+
+    def test_lagged_monthly_print_uses_a_three_month_payroll_delta(self) -> None:
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "macrobot.db"
+            _seed(path, spike=False, lag_monthly=True)
+            brief = load_regime_brief(path, now=NOW)
+        payrolls = _by_id(brief_payload(brief)["economy"]["checks"])["g1"]
+        self.assertEqual(payrolls["result"], "PASS")
+        self.assertEqual(payrolls["value"], "3m +90k vs 12m +360k")
+
+    def test_hysteresis_hole_breaks_the_streak(self) -> None:
+        names = ["Calm", "Calm", "Calm", "Turbulence", "Turbulence", None, "Turbulence"]
+        weeks = [
+            {"raw_name": name, "confirmed": None, "status": None, "pending_week": 0}
+            for name in names
+        ]
+        _apply_hysteresis(weeks)
+        self.assertEqual(
+            [(week["confirmed"], week["status"], week["pending_week"]) for week in weeks],
+            [
+                (None, "pending", 1),
+                (None, "pending", 2),
+                ("Calm", "unchanged", 0),
+                ("Calm", "pending", 1),
+                ("Calm", "pending", 2),
+                ("Calm", "unchanged", 0),
+                ("Calm", "pending", 1),
+            ],
+        )
+
+    def test_inflation_sub_threshold_delta_stays_below_the_displayed_step(self) -> None:
+        visible = {
+            "cpi": [
+                (date(2026, 6, 1), 3.00),
+                (date(2026, 7, 1), 2.80),
+                (date(2026, 9, 1), 2.92),
+            ]
+        }
+        check = _inflation(visible, date(2026, 10, 2), "i3", "cpi", "CPI")
+        self.assertEqual(check["result"], "FLAT")
+        self.assertEqual(check["value"], "yoy 2.9% · 3m Δ \u22120.08pp")
+
+    def test_claims_requires_four_and_fifty_two_prints(self) -> None:
+        day = date(2026, 10, 2)
+        sparse = [(day - timedelta(days=7 * i), 220000.0) for i in range(51)]
+        missing = _claims({"icsa": sparse}, day)
+        self.assertIsNone(missing["result"])
+        self.assertIsNone(missing["value"])
+
+        full = [
+            (day - timedelta(days=7 * i), 230000.0 if i >= 4 else 200000.0)
+            for i in range(52)
+        ]
+        check = _claims({"icsa": full}, day)
+        self.assertEqual(check["result"], "PASS")
+        self.assertEqual(check["value"], "4w 200k vs 52w 228k")
+
+    def test_cfnai_average_ends_on_its_latest_print(self) -> None:
+        visible = {
+            "cfnai": [
+                (date(2026, 6, 1), -1.0),
+                (date(2026, 7, 1), 0.10),
+                (date(2026, 8, 1), 0.20),
+                (date(2026, 9, 1), 0.30),
+            ]
+        }
+        check = _cfnai(visible, date(2026, 10, 2))
+        self.assertEqual(check["result"], "PASS")
+        self.assertEqual(check["value"], "3m avg +0.20")
+        thin = _cfnai({"cfnai": [(date(2026, 9, 1), 0.30)]}, date(2026, 10, 2))
+        self.assertIsNone(thin["result"])
+        self.assertIsNone(thin["value"])
+
+    def test_real_pce_annualizes_only_a_three_month_span(self) -> None:
+        spanned = _real_pce(
+            {"real_pce": [(date(2026, 6, 1), 100.0), (date(2026, 9, 1), 103.0)]},
+            date(2026, 10, 2),
+        )
+        self.assertEqual(spanned["result"], "PASS")
+        self.assertEqual(spanned["value"], "3m ann. +12.6%")
+        shifted = _real_pce(
+            {"real_pce": [(date(2026, 5, 1), 100.0), (date(2026, 9, 1), 103.0)]},
+            date(2026, 10, 2),
+        )
+        self.assertIsNone(shifted["result"])
+        self.assertIsNone(shifted["value"])
+
+    def test_missing_print_three_months_back_is_not_invented(self) -> None:
+        payrolls = _payrolls(
+            {
+                "payems": [
+                    (date(2025, 9, 1), 100.0),
+                    (date(2026, 5, 1), 100.0),
+                    (date(2026, 7, 1), 160.0),
+                    (date(2026, 8, 1), 190.0),
+                    (date(2026, 9, 1), 220.0),
+                ]
+            },
+            date(2026, 10, 2),
+        )
+        self.assertIsNone(payrolls["result"])
+        self.assertIsNone(payrolls["value"])
+        unemployment = _unemployment(
+            {
+                "unrate": [
+                    (date(2026, 6, 1), 4.5),
+                    (date(2026, 7, 1), 4.2),
+                    (date(2026, 9, 1), 4.0),
+                ]
+            },
+            date(2026, 10, 2),
+        )
+        self.assertEqual(unemployment["result"], "PASS")
+        self.assertEqual(unemployment["value"], "3m \u22120.50pp")
+
+    def test_trend_without_a_percent_stays_missing(self) -> None:
+        day = date(2026, 10, 2)
+        points = []
+        cursor = date(2026, 1, 2)
+        while cursor <= day:
+            if cursor.weekday() < 5:
+                points.append((cursor, 0.0))
+            cursor += timedelta(days=1)
+        check = _trend({"fed_net_liquidity": points}, day)
+        self.assertIsNone(check["result"])
+        self.assertIsNone(check["value"])
+        self.assertIsNone(check["number"])

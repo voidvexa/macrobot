@@ -342,6 +342,8 @@ def _apply_hysteresis(weeks: list[dict]) -> None:
     for week in weeks:
         raw = week["raw_name"]
         if raw is None:
+            streak_name = None
+            streak = 0
             week["confirmed"] = confirmed
             week["status"] = "unchanged" if confirmed else None
             week["pending_week"] = 0
@@ -351,7 +353,7 @@ def _apply_hysteresis(weeks: list[dict]) -> None:
         else:
             streak_name = raw
             streak = 1
-        if confirmed is None or streak >= CONFIRM_WEEKS:
+        if streak >= CONFIRM_WEEKS:
             confirmed = raw
         week["confirmed"] = confirmed
         if raw != confirmed:
@@ -415,7 +417,7 @@ def _liquidity_payload(current: dict, chain: list[dict]) -> dict:
         "trend": {
             "direction": current["trend"],
             "change_28d": current["trend_change"],
-            "text": _money(current["trend_change"], signed=True) if current["trend_change"] is not None else None,
+            "text": _trend_text(current["trend_change"]) if current["trend_change"] is not None else None,
         },
         "weeks": [_liquidity_week(week) for week in chain],
         "checks": current["checks"],
@@ -535,9 +537,9 @@ def _context(grouped: dict[str, list[Point]], as_of: date, cutoff: datetime, mom
 
 def _payrolls(visible: dict[str, list[tuple[date, float]]], day: date) -> dict:
     latest = _at(visible["payems"], day)
-    past3 = _at(visible["payems"], _shift_months(day, 3))
-    past12 = _at(visible["payems"], _shift_months(day, 12))
-    if latest is None or past3 is None or past12 is None or latest[0] == past3[0] or latest[0] == past12[0]:
+    past3 = None if latest is None else _on_date(visible["payems"], _shift_months(latest[0], 3))
+    past12 = None if latest is None else _on_date(visible["payems"], _shift_months(latest[0], 12))
+    if latest is None or past3 is None or past12 is None:
         return _missing("g1", "payems", "growth", "Needs a 3-month and a 12-month payrolls print.")
     delta3 = latest[1] - past3[1]
     delta12 = latest[1] - past12[1]
@@ -554,8 +556,8 @@ def _payrolls(visible: dict[str, list[tuple[date, float]]], day: date) -> dict:
 
 def _unemployment(visible: dict[str, list[tuple[date, float]]], day: date) -> dict:
     latest = _at(visible["unrate"], day)
-    past = _at(visible["unrate"], _shift_months(day, 3))
-    if latest is None or past is None or latest[0] == past[0]:
+    past = None if latest is None else _on_date(visible["unrate"], _shift_months(latest[0], 3))
+    if latest is None or past is None:
         return _missing("g2", "unrate", "growth", "Needs an unemployment rate from 3 months ago.")
     delta = latest[1] - past[1]
     return _check(
@@ -572,7 +574,7 @@ def _unemployment(visible: dict[str, list[tuple[date, float]]], day: date) -> di
 def _claims(visible: dict[str, list[tuple[date, float]]], day: date) -> dict:
     short = _window(visible["icsa"], day - timedelta(days=28), day)
     long = _window(visible["icsa"], day - timedelta(days=364), day)
-    if len(short) < 2 or len(long) < 8:
+    if len(short) < 4 or len(long) < 52:
         return _missing("g3", "icsa", "growth", "Needs a 4-week and a 52-week claims average.")
     avg4 = sum(short) / len(short)
     avg52 = sum(long) / len(long)
@@ -588,10 +590,25 @@ def _claims(visible: dict[str, list[tuple[date, float]]], day: date) -> dict:
 
 
 def _cfnai(visible: dict[str, list[tuple[date, float]]], day: date) -> dict:
-    window = _window(visible["cfnai"], _shift_months(day, 3), day)
-    if not window:
+    latest = _at(visible["cfnai"], day)
+    if latest is None:
         return _missing("g4", "cfnai", "growth", "Needs a CFNAI print in the last 3 months.")
-    avg = sum(window) / len(window)
+    end = latest[0]
+    year, month = end.year, end.month
+    needed: set[tuple[int, int]] = set()
+    for _ in range(3):
+        needed.add((year, month))
+        month -= 1
+        if month == 0:
+            month = 12
+            year -= 1
+    picked: dict[tuple[int, int], float] = {}
+    for printed, value in sorted(visible["cfnai"]):
+        if printed <= end and (printed.year, printed.month) in needed:
+            picked[(printed.year, printed.month)] = value
+    if len(picked) < 3:
+        return _missing("g4", "cfnai", "growth", "Needs a CFNAI print in the last 3 months.")
+    avg = sum(picked.values()) / len(picked)
     return _check(
         "g4",
         "cfnai",
@@ -605,8 +622,9 @@ def _cfnai(visible: dict[str, list[tuple[date, float]]], day: date) -> dict:
 
 def _real_pce(visible: dict[str, list[tuple[date, float]]], day: date) -> dict:
     latest = _at(visible["real_pce"], day)
-    past = _at(visible["real_pce"], _shift_months(day, 3))
-    if latest is None or past is None or latest[0] == past[0] or past[1] <= 0 or latest[1] <= 0:
+    past_day = None if latest is None else _shift_months(latest[0], 3)
+    past = None if past_day is None else _on_date(visible["real_pce"], past_day)
+    if latest is None or past is None or past_day is None or past[0] != past_day or past[1] <= 0 or latest[1] <= 0:
         return _missing("g5", "real_pce", "growth", "Needs a real PCE level from 3 months ago.")
     ann = ((latest[1] / past[1]) ** 4 - 1.0) * 100.0
     return _check(
@@ -622,8 +640,8 @@ def _real_pce(visible: dict[str, list[tuple[date, float]]], day: date) -> dict:
 
 def _inflation(visible, day: date, check_id: str, key: str, name: str) -> dict:
     latest = _at(visible[key], day)
-    past = _at(visible[key], _shift_months(day, 3))
-    if latest is None or past is None or latest[0] == past[0]:
+    past = None if latest is None else _on_date(visible[key], _shift_months(latest[0], 3))
+    if latest is None or past is None:
         return _missing(check_id, key, "inflation", f"Needs a {name} print from 3 months ago.")
     delta = latest[1] - past[1]
     if delta <= -INFLATION_STEP:
@@ -637,7 +655,7 @@ def _inflation(visible, day: date, check_id: str, key: str, name: str) -> dict:
         key,
         "inflation",
         result,
-        f"yoy {_signed(latest[1], 1).lstrip('+')}% · 3m Δ {_signed(delta, 1)}pp",
+        f"yoy {_signed(latest[1], 1).lstrip('+')}% · 3m Δ {_signed(delta, 2)}pp",
         "Cooling when the year-over-year rate is down at least 0.1pp over 3 months. The 3-month annualized rate is not stored.",
         delta,
     )
@@ -675,10 +693,11 @@ def _level_check(visible, day, check_id, key, detail, fire_above: float) -> dict
 
 
 def _trend(visible, day: date) -> dict:
-    change = _delta(visible["fed_net_liquidity"], day, 28)
-    if change is None:
+    points = visible["fed_net_liquidity"]
+    pct = _trend_percent(points, day, 28)
+    if pct is None:
         return _missing("t1", "fed_net_liquidity", "trend", "Needs a net liquidity print from 28 days ago.")
-    zed = _z(visible["fed_net_liquidity"], day, 28)
+    zed = _z(points, day, 28)
     if zed is not None:
         if zed >= Z_FIRE:
             result = "UP"
@@ -686,20 +705,24 @@ def _trend(visible, day: date) -> dict:
             result = "DOWN"
         else:
             result = "FLAT"
-    elif change >= LIQ_BAND:
-        result = "UP"
-    elif change <= -LIQ_BAND:
-        result = "DOWN"
     else:
-        result = "FLAT"
+        change = _delta(points, day, 28)
+        if change is None:
+            return _missing("t1", "fed_net_liquidity", "trend", "Needs a net liquidity print from 28 days ago.")
+        if change >= LIQ_BAND:
+            result = "UP"
+        elif change <= -LIQ_BAND:
+            result = "DOWN"
+        else:
+            result = "FLAT"
     return _check(
         "t1",
         "fed_net_liquidity",
         "trend",
         result,
-        f"28d {_money(change, signed=True)}",
+        _trend_text(pct),
         "Flat when the 28-day z-score is inside ±1, or, without that history, when the 28-day change is inside ±$50B.",
-        change,
+        pct,
     )
 
 
@@ -785,8 +808,34 @@ def _at(points: list[tuple[date, float]], target: date) -> tuple[date, float] | 
     return best
 
 
+def _on_date(points: list[tuple[date, float]], target: date) -> tuple[date, float] | None:
+    found = _at(points, target)
+    if found is None or found[0] != target:
+        return None
+    return found
+
+
 def _window(points: list[tuple[date, float]], start: date, end: date) -> list[float]:
     return [value for day, value in points if start < day <= end]
+
+
+def _trend_percent(points: list[tuple[date, float]], day: date, horizon: int) -> float | None:
+    latest = _at(points, day)
+    if latest is None:
+        return None
+    end = latest[0]
+    now = _avg_ending(points, end, horizon)
+    then = _avg_ending(points, end - timedelta(days=horizon), horizon)
+    if now is None or then is None or then == 0:
+        return None
+    return (now - then) / then * 100.0
+
+
+def _avg_ending(points: list[tuple[date, float]], end: date, horizon: int) -> float | None:
+    window = _window(points, end - timedelta(days=horizon), end)
+    if not window:
+        return None
+    return sum(window) / len(window)
 
 
 def _visible(points: list[Point], cutoff: datetime) -> list[tuple[date, float]]:
@@ -903,6 +952,10 @@ def _signed(number: float, digits: int) -> str:
     if number < 0:
         return f"\u2212{text}"
     return f"+{text}"
+
+
+def _trend_text(number: float) -> str:
+    return f"28d avg {_signed(number, 2)}%"
 
 
 def _k(number: float) -> str:
